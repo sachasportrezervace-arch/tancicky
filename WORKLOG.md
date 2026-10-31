@@ -8,6 +8,7 @@ PŘEVZATO 31. 10. – dodělává session na účtu P, jiná session sem nepíš
 - **Hotovo:** převzat rozdělaný engine (MODS, MAPS vč. „Věže“, Vztek) i UI (karta kola, čip modifikátoru, odstín nebe, vztek na tanku a v HUD, kosmetika za sérii, 2. kolo designu). Nově: kolo nikdy nezopakuje mapu ani zvláštní modifikátor předchozího kola (+ test), `tests/playtest3.cjs` (3 partie za sebou se musí lišit), README.
 - **Design-eye kolo 3:** 3 blockery opraveny: řada schopností na ležato se posouvá se scroll-snap a zprůhledněním vpravo, obchod se otevírá až po kartě kola, texty jsou bez rodu a pádu („odemyká“, „Dárek · Bára“). Polish: výraznější `.ragetag` (#C8372A). Kontrola: všechno OK až na „Dárek od Bára“ na tlačítku zbraně, i to je opravené.
 - **Rozhodnuto:** písmo Fredoka zůstává z Google CDN a schody na hraně trávy zůstávají (jen polish, neblokuje).
+- **Ověřeno (příkaz → exit):** lokálně engine 309 PASS (0), net 64/64 (0), duel `--variant both` 84/84 (0), mobile 66/66 (0), `tests/playtest3.cjs` PASS (0). Nasazeno 501a10a; ŽIVĚ `node tests/duel.cjs https://sachasportrezervace-arch.github.io/tancicky/ --variant both` 84/84 (0), `node tests/mobile.cjs <Pages URL>` 66/66 (0).
 - **Otevřené / NEOVĚŘENO:** zvuk poslechem, vzhled písma na skutečném iPhonu, bílý záblesk výbuchu na snímku.
 
 ## 2026-10-31 – předávka (rozpracováno, kontext hlavní session plný)
