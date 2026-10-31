@@ -884,6 +884,7 @@ function botStats(label, seeds, opts) {
   ok("20 seedů pokryje >= 4 typy map a >= 4 modifikátory", maps.size >= 4 && mods.size >= 4, [...maps].join() + " | " + [...mods].join());
   ok("normal je nejčastější (>= 25 % ze 100 seedů, < 60 %)", (() => { let n = 0; for (let seed = 1; seed <= 100; seed++) if (E.newMatch({ seed: seed }).mod === "normal") n++; return n >= 25 && n < 60; })());
   ok("3 různé seedy dávají vidatelně různé kolo (mapa/mod/terén)", (() => { const a = E.newMatch({ seed: 11 }), b = E.newMatch({ seed: 12 }), c = E.newMatch({ seed: 13 }); return new Set([a, b, c].map((q) => q.map + "/" + q.mod)).size >= 2 && new Set([a, b, c].map((q) => q.h.join(","))).size === 3; })());
+  okd("další kolo nikdy nezopakuje mapu ani zvláštní modifikátor předchozího kola (60 seedů)", (() => { for (let seed = 1; seed <= 60; seed++) { let s = fresh(seed); s.tanks[1].hp = 1; const r = runTurn(s, bot(s)); const q = r.state; if (q.round !== s.round + 1) continue; if (q.map === s.map) return "seed " + seed + " map " + q.map; if (s.mod !== "normal" && q.mod === s.mod) return "seed " + seed + " mod " + q.mod; } return true; })());
   ok("další kolo bere mapu a mod ze seedu a čísla kola (zápas přes kola má různorodost)", (() => { let sawChange = false; for (let seed = 1; seed <= 30 && !sawChange; seed++) { let s = fresh(seed); s.tanks[1].hp = 1; const r = runTurn(s, bot(s)); if (!r.state.matchOver && (r.state.map !== s.map || r.state.mod !== s.mod)) sawChange = true; } return sawChange; })());
 
   // hostile / vynucení

@@ -168,8 +168,16 @@
     { id: "vulkan", name: "Sopka" }, { id: "duny", name: "Duny" }, { id: "ostrovy", name: "Věže" }
   ];
   const MOD_TABLE = ["normal", "normal", "normal", "normal", "vichr", "mesic", "tezko", "zrcadlo", "bohaci", "kratery"];
-  function mapFor(si, round) { return MAPS[mix32(si ^ Math.imul(round + 3, 0x85EBCA6B) ^ 0x5BD1E995) % MAPS.length].id; }
-  function modFor(si, round) { return MOD_TABLE[mix32(si ^ Math.imul(round + 5, 0x9E3779B1) ^ 0x27D4EB2F) % MOD_TABLE.length]; }
+  // kolo nikdy nezopakuje mapu ani zvláštní modifikátor předchozího kola (prev = předchozí kolo, v 1. kole se nehlídá)
+  function mapFor(si, round, prev) {
+    let i = mix32(si ^ Math.imul(round + 3, 0x85EBCA6B) ^ 0x5BD1E995) % MAPS.length;
+    if (round > 1 && MAPS[i].id === prev) i = (i + 1 + mix32(si ^ Math.imul(round + 7, 0x27D4EB2F)) % (MAPS.length - 1)) % MAPS.length;
+    return MAPS[i].id;
+  }
+  function modFor(si, round, prev) {
+    const i = mix32(si ^ Math.imul(round + 5, 0x9E3779B1) ^ 0x27D4EB2F) % MOD_TABLE.length;
+    return round > 1 && prev !== "normal" && MOD_TABLE[i] === prev ? MOD_TABLE[(i + 1) % MOD_TABLE.length] : MOD_TABLE[i];
+  }
   function grav(s) { return s.mod === "mesic" ? 6 : (s.mod === "tezko" ? 13 : G); }
   function rad(s, r) { return s.mod === "kratery" ? idiv(r * 13, 10) : r; }
   function windOf(s, si, n) {
@@ -339,8 +347,8 @@
   function setupRound(s, starter, force) {
     const si = seedInt(s.seed);
     force = force || {};
-    s.map = own(MAPOWN, force.map) ? force.map : mapFor(si, s.round);
-    s.mod = own(MODOWN, force.mod) ? force.mod : modFor(si, s.round);
+    s.map = own(MAPOWN, force.map) ? force.map : mapFor(si, s.round, s.map);
+    s.mod = own(MODOWN, force.mod) ? force.mod : modFor(si, s.round, s.mod);
     const g = genTerrain(si, s.round, s.map);
     s.h = g.h;
     for (let i = 0; i < 2; i++) {
