@@ -4,6 +4,10 @@ Nejnovější nahoře. Číst jen horních ~40 řádků.
 
 PŘEVZATO 31. 10. – dodělává session na účtu P, jiná session sem nepíše.
 
+## 2026-10-31 noc – sólo režim (Trénink)
+- **Hotovo:** „Zkusit sám proti robotovi“ na úvodu + adresa `#solo`. Robot = `suggestShot` s pauzou 0,9 s a rozptylem ±8 % (asi 2 ze 3 střel nesedí přesně). Bez sync, odkazu i série, ve hře je „Trénink“, na konci „Znovu“ a „Vyzvat soupeře“. Test `tests/solo.cjs` (Chromium 1440×900 + WebKit iPhone 13, celá partie, 0 požadavků na mantledb).
+- **Ověřeno lokálně:** solo 21/21, duel 84/84, mobile 66/66, engine 309, net 64/64 (vše exit 0).
+
 ## 2026-10-31 večer – dokončení po přerušení (session účet P)
 - **Hotovo:** převzat rozdělaný engine (MODS, MAPS vč. „Věže“, Vztek) i UI (karta kola, čip modifikátoru, odstín nebe, vztek na tanku a v HUD, kosmetika za sérii, 2. kolo designu). Nově: kolo nikdy nezopakuje mapu ani zvláštní modifikátor předchozího kola (+ test), `tests/playtest3.cjs` (3 partie za sebou se musí lišit), README.
 - **Design-eye kolo 3:** 3 blockery opraveny: řada schopností na ležato se posouvá se scroll-snap a zprůhledněním vpravo, obchod se otevírá až po kartě kola, texty jsou bez rodu a pádu („odemyká“, „Dárek · Bára“). Polish: výraznější `.ragetag` (#C8372A). Kontrola: všechno OK až na „Dárek od Bára“ na tlačítku zbraně, i to je opravené.

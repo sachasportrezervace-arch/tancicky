@@ -34,4 +34,8 @@ node tests/mobile.cjs http://127.0.0.1:8802/
 ```bash
 node tests/playtest3.cjs
 ```
+```bash
+node tests/solo.cjs http://127.0.0.1:8802/
+```
+Trénink proti robotovi: tlačítko „Zkusit sám proti robotovi“ nebo adresa `#solo` (nic se nesynchronizuje, nepočítá se do série).
 Duel a mobile potřebují globálně nainstalovaný Playwright (`%APPDATA%/npm/node_modules/playwright`). Proti živé verzi stačí místo localhost dát Pages URL.

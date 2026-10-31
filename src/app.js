@@ -54,7 +54,7 @@
   function canAct() {
     if (!S.state || S.state.matchOver || S.turn || S.pumping || S.committing || S.corrupt) return false;
     if (S.shown && S.g && S.shown.t.length !== S.g.t.length) return false;
-    if (S.mode === "local") return true;
+    if (S.mode === "local") return !(S.solo && S.state.cur === BOT);
     if (S.mode === "online") return S.seat != null && S.seat === S.state.cur;
     return false;
   }
@@ -138,7 +138,8 @@
     box.dataset.dir = wd < 0 ? "-1" : "1"; box.dataset.n = aw === 0 ? "0" : String(Math.min(4, Math.ceil(aw / 4)));
     $("windTxt").textContent = aw; box.style.setProperty("--wf", String(Math.min(1, aw / 15))); box.title = aw === 0 ? "Bezvětří" : "Vítr " + aw + (wd < 0 ? " doleva" : " doprava");
     var g = S.g, ser = "";
-    if (g && (g.gi > 1 || (g.w && (g.w[0] || g.w[1])))) ser = "odveta " + (g.gi - 1) + " · série " + g.w[0] + ":" + g.w[1];
+    if (S.solo) ser = "Trénink";
+    else if (g && (g.gi > 1 || (g.w && (g.w[0] || g.w[1])))) ser = "odveta " + (g.gi - 1) + " · série " + g.w[0] + ":" + g.w[1];
     $("seriesTxt").textContent = ser;
   }
 
@@ -535,7 +536,7 @@
     else if (spec) txt = "Na tahu: " + nameOf(st.cur);
     else if (myTurnOnline()) { txt = "Jsi na tahu"; mine = true; }
     else txt = nameOf(st.cur) + " míří…";
-    var isMine = mine || (S.mode === "local" && !S.turn && !st.matchOver);
+    var isMine = mine || (S.mode === "local" && !S.turn && !st.matchOver && !(S.solo && st.cur === BOT));
     if (sp.textContent !== txt) { sp.textContent = txt; clearTimeout(updateCtrl.st); sp.classList.remove("gone"); if (isMine) updateCtrl.st = setTimeout(function () { sp.classList.add("gone"); }, 1500); }
     sp.classList.toggle("mine", isMine);
     $("skipReplay").hidden = !S.turn;
@@ -660,6 +661,28 @@
     }
     // mezitím mohl dorazit další tah
     if (S.g && S.shown && S.shown.t.length < S.g.t.length && !S.pumping) pump();
+    if (S.solo && view === "play" && !st.matchOver && st.cur === BOT) botTurn();
+  }
+
+  /* ---------------- trénink: robot (jen lokálně, nic se neposílá) ---------------- */
+  var BOT = 1, botT = 0;
+  function botTurn() {
+    clearTimeout(botT);
+    var key = S.g && S.g.gi + ":" + S.g.t.length;
+    botT = setTimeout(function () {
+      var st = S.state;
+      if (!S.solo || view !== "play" || !st || st.matchOver || st.cur !== BOT || S.turn || S.pumping || (S.g.gi + ":" + S.g.t.length) !== key) return;
+      var t = st.tanks[BOT], ws = Object.keys(t.ammo || {}).filter(function (id) { return (t.ammo[id] | 0) > 0; });
+      var inp = E.suggestShot(st, { weapons: ["grenade"].concat(ws.slice(0, 4)) });
+      // hratelný, ne dokonalý: střelu trochu rozhodí (asi každá třetí sedí přesně)
+      if (Math.random() > 0.33) {
+        var f = function (v) { return Math.round(v * (1 + (Math.random() * 2 - 1) * 0.08)); };
+        var rough = Object.assign({}, inp, { vx: f(inp.vx), vy: f(inp.vy) });
+        if (!E.validate(st, rough)) inp = rough;
+      }
+      if (E.validate(st, inp)) return;
+      S.g = Object.assign({}, S.g, { t: S.g.t.concat([inp]) }); pump();
+    }, S.fast ? 50 : 900);
   }
 
   /* ---------------- vystřelení ---------------- */
@@ -815,7 +838,7 @@
     var st = S.turn ? S.turn.state : S.state;
     if (Snd) { var pr0 = S.turn && !S.fast && st.proj && st.proj[0]; if (pr0) Snd.whistleOn(pr0.vy / 700); else Snd.whistleOff(); }
     camLoop(st);
-    var act = canAct(), scene = { state: st, wind: st.wind, active: act || (S.mode === "local" && !S.turn && !st.matchOver) ? st.cur : null, angles: [C.mem[0].angle, C.mem[1].angle], names: [nameOf(0), nameOf(1)] };
+    var act = canAct(), scene = { state: st, wind: st.wind, active: act || (S.mode === "local" && !S.solo && !S.turn && !st.matchOver) ? st.cur : null, angles: [C.mem[0].angle, C.mem[1].angle], names: [nameOf(0), nameOf(1)] };
     if (act) {
       scene.aim = { idx: st.cur, angle: C.angle, power: Math.round(C.power * 2) / 2, dragging: !!(gest && gest.type === "aim" && gest.moved) };
       if (R.pannable()) scene.zone = { r: AIM_ZONE_PX / R.camera().scale };
@@ -833,7 +856,7 @@
   }
 
   /* ---------------- konec zápasu ---------------- */
-  var seriesAfter = function (g, st) { var w = (g.w || [0, 0]).slice(); if (st.winner === 0 || st.winner === 1) w[st.winner]++; return w; };
+  var seriesAfter = function (g, st) { var w = (g.w || [0, 0]).slice(); if (!S.solo && (st.winner === 0 || st.winner === 1)) w[st.winner]++; return w; }; // trénink se do série nepočítá
   function renderEnd() {
     $("toast").hidden = true; clearTimeout(toast.t);
     var st = S.state, g = S.g, w = st.winner, sw = seriesAfter(g, st), pal = TR.PAL;
@@ -841,6 +864,7 @@
     $("endTitle").textContent = w === 0 || w === 1 ? nameOf(w) + " bere zápas!" : "Remíza. Nikdo necouvl.";
     var sub;
     if (S.mode === "online" && S.seat != null) sub = w === -1 ? "Zápas skončil nerozhodně." : w === S.seat ? "Tenhle zápas je tvůj." : "Tenhle zápas ti utekl. Odveta?";
+    else if (S.solo) sub = "Trénink se nepočítá do série. " + (w === BOT ? "Robot tentokrát vyhrál." : w === -1 ? "Remíza s robotem." : "Robot to nezvládl.");
     else sub = w === -1 ? "Zápas skončil nerozhodně." : "";
     $("endSub").textContent = sub; $("endSub").hidden = !sub;
     var html = "";
@@ -863,6 +887,7 @@
     else if (stk) line = stk.text;
     $("endStake").hidden = !line; $("endStake").textContent = line;
     $("rematchBtn").hidden = spectating(); $("copyEndBtn").hidden = S.mode !== "online";
+    $("rematchBtn").textContent = S.solo ? "Znovu" : "Odveta!"; $("challengeBtn").hidden = !S.solo;
   }
   async function rematch() {
     var st = S.state, g = S.g; if (!st || !st.matchOver) return;
@@ -878,6 +903,7 @@
     else toast("Spojení nevyšlo, zkus to znovu.");
   }
   $("rematchBtn").addEventListener("click", rematch);
+  $("challengeBtn").addEventListener("click", function () { leave(); var n = $("nameMe"); if (n && !n.value) n.focus(); });
   $("copyEndBtn").addEventListener("click", function () { if (S.id) copyText(linkFor(S.id), "Odkaz je zkopírovaný."); });
   $("copyTopBtn").addEventListener("click", function () { if (S.id) copyText(linkFor(S.id), "Odkaz je zkopírovaný."); else toast("Hra na jednom zařízení odkaz nemá."); });
   $("menuBtn").addEventListener("click", leave);
@@ -890,7 +916,7 @@
     if (NET && NET.unwatch) NET.unwatch();
     resetSession(); history.pushState(null, "", location.pathname + location.search); showSetup();
   }
-  function resetSession() { S.mode = null; S.id = null; S.v = -1; S.g = null; S.doc = null; S.s0 = ""; S.s1 = ""; S.seat = null; S.free = null; S.shown = null; S.state = null; S.turn = null; S.animDone = null; S.pumping = false; S.committing = false; S.fast = false; S.corrupt = false; C.key = ""; C.cart = []; hudSig = ""; setBubble(0, ""); $("banner").hidden = true; closeWeapons(); $("shop").hidden = true; }
+  function resetSession() { clearTimeout(botT); S.solo = false; S.mode = null; S.id = null; S.v = -1; S.g = null; S.doc = null; S.s0 = ""; S.s1 = ""; S.seat = null; S.free = null; S.shown = null; S.state = null; S.turn = null; S.animDone = null; S.pumping = false; S.committing = false; S.fast = false; S.corrupt = false; C.key = ""; C.cart = []; hudSig = ""; setBubble(0, ""); $("banner").hidden = true; closeWeapons(); $("shop").hidden = true; }
 
   /* ---------------- online ---------------- */
   function onNet(state) { $("netPill").hidden = !state; if (state) $("netPill").textContent = state; }
@@ -981,6 +1007,15 @@
     history.replaceState(null, "", location.pathname + location.search);
     enterGame();
   });
+  // trénink proti robotovi: stejné losování map a modifikátorů, bez synchronizace, odkazu a série
+  function startSolo() {
+    var a = $("nameMe").value.trim().slice(0, 16) || store.get("tanc-name") || "Hráč";
+    if (NET && NET.unwatch) NET.unwatch(); resetSession();
+    S.mode = "local"; S.solo = true; S.g = { n: [a, "Robot"], k: "", kc: "", w: [0, 0], gi: 1, seed: rnd31(), start: 0, t: [] };
+    history.replaceState(null, "", location.pathname + location.search + "#solo");
+    enterGame();
+  }
+  $("soloBtn").addEventListener("click", startSolo);
 
   /* ---------------- úvodní obrazovka a poslední hry ---------------- */
   function showRecent() {
@@ -1004,6 +1039,7 @@
     if (NET && NET.unwatch) NET.unwatch();
     var m = /^#r\.([0-9a-z]{6,24})$/.exec(location.hash || "");
     if (m) { openRoom(m[1]); return; }
+    if (location.hash === "#solo") { showSetup(); startSolo(); return; }
     resetSession(); showSetup();
   }
   window.addEventListener("hashchange", boot);
@@ -1083,6 +1119,8 @@
     view: function () { return view; },
     me: function () { return S.mode === "online" ? S.seat : S.mode === "local" && S.state ? S.state.cur : null; },
     busy: function () { return !!(S.pumping || S.committing); },
+    solo: function () { return !!S.solo; },
+    series: function () { return S.g && S.g.w ? S.g.w.slice() : null; },
     animating: function () { return !!S.turn; },
     inputs: function () { return S.g ? S.g.t.slice() : []; },
     play: async function (input) {
