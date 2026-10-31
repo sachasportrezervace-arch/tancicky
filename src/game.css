@@ -378,7 +378,9 @@ body[data-view="end"] .a2hs, body[data-view="play"] .a2hs { display: none; }
   .wico { width: 32px; height: 32px; }
   .wname { font-size: 15px; }
   .c-gift { gap: 2px; }
-  .c-abil { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 0 0 2px; }
+  .c-abil { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 0 0 2px; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; }
+  .c-abil > * { scroll-snap-align: start; }
+  .c-abil.more { -webkit-mask-image: linear-gradient(to right, #000 82%, transparent); mask-image: linear-gradient(to right, #000 82%, transparent); } /* napoveda: vpravo je dalsi schopnost */
   .c-abil::-webkit-scrollbar { display: none; }
   .abtn { flex: none; width: 44px; min-width: 44px; max-width: none; }
   .gopt { font-size: 13px; padding: 0 12px; }
@@ -521,7 +523,7 @@ body[data-view="end"] .a2hs, body[data-view="play"] .a2hs { display: none; }
 .windpill { display: flex; align-items: center; gap: 8px; }
 .modchip { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px 0 10px; border-radius: var(--r-full); background: var(--cream); box-shadow: var(--flat); font-weight: 700; font-size: 13px; color: var(--ink); white-space: nowrap; }
 .modchip .ic { width: 18px; height: 18px; flex: none; }
-.ragetag { display: inline-flex; align-items: center; height: 18px; padding: 0 8px; border-radius: var(--r-full); background: #FFE0DB; color: #A4271B; font-weight: 700; font-size: 12px; white-space: nowrap; }
+.ragetag { display: inline-flex; align-items: center; height: 22px; padding: 0 10px; border-radius: var(--r-full); background: #C8372A; color: #FFF6E8; font-weight: 700; font-size: 13px; white-space: nowrap; }
 .roundintro { position: fixed; left: 50%; top: 32%; z-index: 45; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 16px 30px 18px; border-radius: var(--r-l); background: var(--cream); box-shadow: var(--flat); text-align: center; pointer-events: none; max-width: min(92vw, 460px); animation: introin .35s var(--ease) both; }
 .ri-kolo { font: 700 34px/1 var(--font); color: var(--ink); }
 .ri-map { font: 600 19px/1.1 var(--font); color: var(--ink-2); }

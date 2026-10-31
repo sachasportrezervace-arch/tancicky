@@ -297,6 +297,9 @@
     abilTipT = setTimeout(function () { abilLong = true; showAbilTip(b); }, 420);
   });
   ["pointerup", "pointercancel", "pointerleave"].forEach(function (n) { $("abilRow").addEventListener(n, function () { clearTimeout(abilTipT); }); });
+  // úzký sloupec (ležato): řada schopností se posouvá, zprůhlednění vpravo ukazuje, že je tam další
+  function abilMore() { var r = $("abilRow"); r.classList.toggle("more", r.scrollWidth > r.clientWidth + r.scrollLeft + 8); }
+  $("abilRow").addEventListener("scroll", abilMore, { passive: true }); window.addEventListener("resize", abilMore);
   $("abilRow").addEventListener("click", function (ev) { if (abilLong) { abilLong = false; ev.preventDefault(); return; } var b = ev.target.closest("[data-a]"); if (b && !b.disabled) selectAbility(b.getAttribute("data-a")); });
 
   // zbraně
@@ -311,7 +314,7 @@
   }
   function closeWeapons() { $("weaponSheet").hidden = true; $("weaponBtn").setAttribute("aria-expanded", "false"); }
   $("weaponBtn").addEventListener("click", function () {
-    if (forcedWeapon()) { toast("Tohle je dárek od " + nameOf(1 - cur()) + ". Vrátit ho můžeš tlačítkem Vrátit dárek."); return; }
+    if (forcedWeapon()) { toast("Tohle je dárek od soupeře (" + nameOf(1 - cur()) + "). Vrátit ho můžeš tlačítkem Vrátit dárek."); return; }
     if ($("weaponSheet").hidden) openWeapons(); else closeWeapons();
   });
   $("giftOpts").addEventListener("click", function (ev) { var b = ev.target.closest("[data-g]"); if (!b || !canAct()) return; C.gift = b.getAttribute("data-g"); sfx("click"); updateCtrl(); });
@@ -490,7 +493,7 @@
     $("weaponBtn").classList.toggle("forced", !!fw);
     var gfOn = act && !!t.gift;
     $("ctrl").classList.toggle("forced", gfOn); $("giftForced").hidden = !gfOn;
-    if (fw) { var gv = 1 - st.cur; $("weaponBtn").style.setProperty("--gc", "var(--p" + gv + "-p)"); $("weaponBtn").style.setProperty("--gcd", "var(--p" + gv + ")"); $("weaponBtn").querySelector(".wammo").textContent = "Dárek od " + nameOf(gv); }
+    if (fw) { var gv = 1 - st.cur; $("weaponBtn").style.setProperty("--gc", "var(--p" + gv + "-p)"); $("weaponBtn").style.setProperty("--gcd", "var(--p" + gv + ")"); $("weaponBtn").querySelector(".wammo").textContent = "Dárek · " + nameOf(gv); }
     if (gfOn) {
       var gbn = sim.gb | 0, gbb = $("giftBackBtn"); gbb.setAttribute("aria-pressed", C.giftBack ? "true" : "false");
       $("gbN").textContent = gbn; gbb.querySelector(".gtx b").textContent = C.giftBack ? "Vráceno" : "Vrátit"; gbb.disabled = !C.giftBack && gbn < 1;
@@ -519,6 +522,7 @@
       html += '<button type="button" class="abtn' + (sel ? " sel" : "") + '" data-a="' + a.id + '"' + (cd > 0 ? " disabled" : "") + ' title="' + esc(a.name + ": " + a.desc) + '" aria-pressed="' + sel + '" aria-label="' + esc(a.name + (cd > 0 ? " (nabíjí se, ještě " + cd + ")" : "")) + '">' + icon(a.id) + "<span>" + esc(a.name) + "</span>" + (cd > 0 ? '<span class="pie" style="--f:' + Math.min(1, cd / (a.cooldown || cd)).toFixed(2) + '"></span><i class="cd">' + cd + "</i>" : "") + "</button>";
     });
     var row = $("abilRow"); if (row.dataset.sig !== html) { row.dataset.sig = html; row.innerHTML = html; }
+    abilMore();
     var oh = "", ot = st.tanks[1 - st.cur];
     if (ot) E.ABILITIES.forEach(function (a) { if (!(a.id in (ot.cd || {}))) return; var ocd = ot.cd[a.id] | 0; oh += '<span class="oa' + (ocd > 0 ? " cdn" : "") + '" title="' + esc(a.name) + '">' + icon(a.id) + (ocd > 0 ? '<span class="pie" style="--f:' + Math.min(1, ocd / (a.cooldown || ocd)).toFixed(2) + '"></span>' : "") + "</span>"; });
     var orow = $("oppAbil"); if (orow.dataset.sig !== oh) { orow.dataset.sig = oh; orow.innerHTML = oh; }
@@ -648,7 +652,11 @@
     wasMine = mineNow;
     if (view === "play" && canAct() && curTank().shop && C.shopDone !== shopKey() && $("shop").hidden) {
       var sk = shopKey(), wait = (S.fast || !(S.g && S.g.t && S.g.t.length)) ? 0 : 250; // dopad uz byl 1,2 s k vidění
-      setTimeout(function () { if (view === "play" && canAct() && C.shopDone !== shopKey() && shopKey() === sk && $("shop").hidden) openShop(); }, wait);
+      var tryShop = function () { // obchod až po zavření úvodní karty kola, ať se nepřekrývají
+        if (!$("roundIntro").hidden) { setTimeout(tryShop, 150); return; }
+        if (view === "play" && canAct() && C.shopDone !== shopKey() && shopKey() === sk && $("shop").hidden) openShop();
+      };
+      setTimeout(tryShop, wait);
     }
     // mezitím mohl dorazit další tah
     if (S.g && S.shown && S.shown.t.length < S.g.t.length && !S.pumping) pump();
@@ -844,8 +852,9 @@
     var un = "", gw = g.w || [0, 0];
     if (w === 0 || w === 1) {
       var tb = tierOf(gw[w]), ta = tierOf(sw[w]), ttb = titleOf(gw[w]), tta = titleOf(sw[w]);
-      if (ta > tb) un = nameOf(w) + " získal " + TIER_ITEM[ta][w] + (tta && tta !== ttb ? " a titul " + tta : "");
-      else if (tta && tta !== ttb) un = nameOf(w) + " získal titul " + tta;
+      // sloveso bez rodu (jméno může být mužské i ženské)
+      if (ta > tb) un = nameOf(w) + " odemyká " + TIER_ITEM[ta][w] + (tta && tta !== ttb ? " a titul " + tta : "");
+      else if (tta && tta !== ttb) un = nameOf(w) + " odemyká titul " + tta;
     }
     $("endUnlock").hidden = !un; $("endUnlock").textContent = un;
     $("endScore").innerHTML = html;

@@ -113,6 +113,8 @@ async function runConfig(cfg) {
     check("setup: bez vodorovného scrollu", await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), await p.evaluate(() => `${document.documentElement.scrollWidth}>${window.innerWidth}`));
     await (cfg.touch ? p.locator("#localBtn").tap() : p.locator("#localBtn").click());
     await p.waitForSelector("body[data-view=play]", { timeout: 20000 });
+    // obchod se otevírá až po úvodní kartě kola (~1,5 s)
+    await p.waitForSelector("#shop:not([hidden])", { timeout: 5000 }).catch(() => {});
     if (await p.locator("#shop:not([hidden])").count()) { await (cfg.touch ? p.locator("#shopDone").tap() : p.locator("#shopDone").click()); await sleep(300); }
     await sleep(800);
     await shot("2-hra");
