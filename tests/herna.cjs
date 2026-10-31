@@ -1,5 +1,5 @@
 // Napojení na Hernu (protokol react-apps/HERNA-PROTOKOL.md, verze 1): hra v iframe vlastního malého rodiče, který
-// emuluje Hernu (lišta 48 px + iframe, naslouchá jen zprávám ze svého iframe). Dva nezávislé prohlížeče, živá synchronizace.
+// emuluje Hernu (lišta 51 px (jako v ostré Herně) + iframe, naslouchá jen zprávám ze svého iframe). Dva nezávislé prohlížeče, živá synchronizace.
 //   node tests/herna.cjs [URL] [--rounds 1|2]     (výchozí http://127.0.0.1:8802/)
 //   běh 1: Mark (seat 0, zaklada=1) = Chromium desktop 1440×900, Radka (seat 1, zaklada=0) = WebKit iPhone 13, partie + odveta
 //   běh 2: role prohozené: Radka (seat 1, zaklada=1) = WebKit iPhone 13 zakládá, Mark (seat 0) = Chromium se posadí, jedna partie
@@ -21,8 +21,8 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const rid = () => Array.from({ length: 12 }, () => "0123456789abcdefghijklmnopqrstuvwxyz"[Math.floor(Math.random() * 36)]).join("");
 const errors = [];
 
-const PARENT = `<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><style>html,body{margin:0;height:100%;background:#222}#bar{height:48px;background:#444}
-iframe{border:0;display:block;width:100%;height:calc(100% - 48px)}</style><div id=bar></div><iframe id=g allow="fullscreen"></iframe>
+const PARENT = `<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><style>html,body{margin:0;height:100%;background:#222}#bar{height:51px;background:#444}
+iframe{border:0;display:block;width:100%;height:calc(100% - 51px)}</style><div id=bar></div><iframe id=g allow="fullscreen"></iframe>
 <script>window.__msgs=[];addEventListener("message",function(e){var f=document.getElementById("g");
 if(e.source===f.contentWindow&&e.data&&typeof e.data==="object"&&e.data.herna===1)window.__msgs.push(e.data);});</script>`;
 
@@ -72,6 +72,16 @@ async function waitMsg(w, pred, ms) {
   const t0 = Date.now();
   while (Date.now() - t0 < ms) { const m = await w.msgs(); const f = m.find(pred); if (f) return f; await sleep(200); }
   return null;
+}
+// konec zápasu se vejde do rámu: každé viditelné tlačítko v .actions je celé nad spodní hranou iframe a pod horní (iPhone 13: iframe 390×613)
+async function endFit(w, label, exp) {
+  const m = await w.fr.evaluate(() => {
+    const out = { ih: innerHeight, iw: innerWidth, btns: [] };
+    document.querySelectorAll("#v-end .actions button").forEach(b => { if (!b.getClientRects().length) return; const r = b.getBoundingClientRect(); out.btns.push({ id: b.id, top: Math.round(r.top), bottom: Math.round(r.bottom), h: Math.round(r.height) }); });
+    return out;
+  });
+  const ok = m.btns.length >= 2 && m.btns.every(b => b.bottom <= m.ih && b.top >= 0 && b.h >= 44) && (!exp || (m.iw === exp[0] && m.ih === exp[1]));
+  check(label, ok, JSON.stringify({ iframe: m.iw + "x" + m.ih, btns: m.btns.map(b => b.id + " " + b.top + "-" + b.bottom) }));
 }
 const fazeSeq = ms => ms.filter(m => m.typ === "stav").map(m => m.faze).join(">");
 
@@ -135,6 +145,20 @@ async function run(name, cfg) {
     return { other: shown("otherGameBtn"), rematch: shown("rematchBtn"), copy: shown("copyEndBtn"), menu: shown("menuBtn"), challenge: shown("challengeBtn") };
   })));
   check(`[${name}] konec: „Jiná hra“ + Odveta vidět, kopírování odkazu a Do menu skryté`, endVis.every(v => v.other && v.rematch && !v.copy && !v.menu && !v.challenge), JSON.stringify(endVis));
+  for (const w of [a, j]) {
+    const phone = w.touch;
+    await endFit(w, `[${name}] konec ${w.tag}: tlačítka celá v rámu (${phone ? "iPhone 13, iframe 390×613" : "desktop"})`, phone ? [390, 613] : null);
+    if (phone) { // ležato v rámu (844×300) a nízký rám (390×480): ilustrace se zmenší, tlačítka zůstanou vidět
+      for (const [iw, ih] of [[844, 300], [390, 480]]) {
+        await w.page.evaluate(([x, y]) => { const f = document.getElementById("g"); f.style.width = x + "px"; f.style.height = y + "px"; }, [iw, ih]);
+        await sleep(500);
+        await endFit(w, `[${name}] konec ${w.tag}: tlačítka celá v rámu ${iw}×${ih}`, [iw, ih]);
+      }
+      await w.page.screenshot({ path: path.join(SHOTS, `herna-${name}-konec-${w.tag}-nizky.png`) }).catch(() => {});
+      await w.page.evaluate(() => { const f = document.getElementById("g"); f.style.width = ""; f.style.height = ""; });
+      await sleep(400);
+    }
+  }
   await a.page.screenshot({ path: path.join(SHOTS, `herna-${name}-konec-F.png`) }).catch(() => {});
   await j.page.screenshot({ path: path.join(SHOTS, `herna-${name}-konec-J.png`) }).catch(() => {});
   await j.fr.evaluate(() => { window.__c = []; ["pointerdown", "touchstart", "touchend", "click"].forEach(t => window.addEventListener(t, e => window.__c.push(t + ":" + (e.target.id || e.target.tagName)), true)); });

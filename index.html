@@ -556,6 +556,50 @@ body[data-herna] #soloBtn, body[data-herna] #challengeBtn, body[data-herna] #cop
 body[data-herna] #leaveBtn, body[data-herna] #menuBtn, body[data-herna] #infoNew, body[data-herna] #fullscreenBtn,
 body[data-herna] #a2hs { display: none !important; }
 body:not([data-herna]) #otherGameBtn { display: none !important; }
+
+/* ---- konec zápasu se vejde na výšku (iframe Herny, nízké telefony, ležato): ilustrace se zmenšuje, tlačítka jsou vždy vidět dole ---- */
+.end-wrap { align-self: stretch; margin: 0 auto; }
+.end-wrap > :first-child { margin-top: auto; }
+.end-wrap > :last-child { margin-bottom: auto; }
+.end-art { position: relative; display: block; flex: 0 1 auto; width: 100%; max-width: 400px; aspect-ratio: 360 / 230; min-height: 84px; }
+.end-art .sprite { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; margin: 0; object-fit: contain; }
+@media (max-height: 700px) {
+  #v-end .scroll { padding-bottom: max(14px, env(safe-area-inset-bottom)); }
+  .end-wrap { gap: 10px; }
+  .end-body { gap: 8px; }
+  .end-body .h1 { font-size: 28px; }
+  .end-body .lead { font-size: 16px; }
+  .end-body .score { padding: 8px 14px; }
+  .end-body .score .side .n { font-size: 40px; }
+  .end-body .stakeline { font-size: 16px; padding: 8px 16px 8px 12px; }
+  .end-body .unlock { padding: 6px 14px; font-size: 15px; }
+  .end-body .btn.big { min-height: 48px; padding-top: 6px; padding-bottom: 6px; }
+}
+@media (max-height: 520px) and (orientation: portrait) { .end-art { display: none; } }
+@media (orientation: landscape) and (max-height: 620px) {
+  .setup-wrap.end-wrap { max-width: 840px; text-align: left; }
+  .end-wrap > * { margin-block: auto; }
+  .end-art { width: 220px; max-width: 34vw; flex: none; }
+}
+@media (orientation: landscape) and (max-height: 460px) {
+  .end-wrap { gap: 18px; }
+  .end-art { max-width: 28vw; }
+  .end-body .actions { flex-direction: row; flex-wrap: wrap; align-items: center; max-width: 100%; gap: 6px 8px; }
+  .end-body .actions .btn.big { flex: 1 1 150px; }
+  .end-body .actions .linkbtn { flex: 1 1 100%; min-height: 44px; padding-top: 2px; padding-bottom: 2px; }
+}
+@media (orientation: landscape) and (max-height: 380px) {
+  #v-end .scroll { padding-top: max(10px, env(safe-area-inset-top)); padding-bottom: max(10px, env(safe-area-inset-bottom)); }
+  .end-wrap { gap: 14px; }
+  .end-art { max-width: 22vw; }
+  .end-body { flex-direction: row; flex-wrap: wrap; justify-content: flex-start; align-items: center; gap: 6px 8px; }
+  .end-body > .h1, .end-body > .lead, .end-body > .score, .end-body > .actions { flex: 1 1 100%; }
+  .end-body .h1 { font-size: 26px; }
+  .end-body .score { padding: 6px 14px; }
+  .end-body .score .side .n { font-size: 32px; }
+}
+@media (orientation: landscape) and (max-height: 340px) { .end-body .lead { display: none; } }
+@media (max-height: 440px) and (orientation: portrait) { .end-body .lead { display: none; } }
 </style>
 </head>
 <body data-view="setup">
