@@ -4,6 +4,12 @@ Nejnovější nahoře. Číst jen horních ~40 řádků.
 
 PŘEVZATO 31. 10. – dodělává session na účtu P, jiná session sem nepíše.
 
+## 2026-10-31 – napojení na Hernu
+- **Hotovo:** protokol Herny verze 1 (`react-apps/HERNA-PROTOKOL.md`). `<meta name="herna-protokol" content="1">` v `index.html`; při `#herna=1&m=…&r=…&seat=…&names=…&zaklada=…` hra přeskočí výzvu i setup (`hernaBoot` v `src/app.js`): zakladatel založí dokument `tancicky-<r>/hra` se jmény z Herny (`TankNet.create(g, seat, id)`), druhý polluje a sedne si sám (`TankNet.accept`, bez `introMine`). Skryté: sdílení odkazu, „Zkusit sám“, „Vyzvat soupeře“, „Do menu“, domů, celá obrazovka, nápověda Přidat na plochu (CSS `body[data-herna]`). Nové tlačítko „Jiná hra“ na konci. Zprávy rodiči: `pripraveno`, `stav` (ceka/hraje/konec), `vysledek` (`<r>:<gi>`, vitez = seat nebo null, jednou za partii a hráče), `jina-hra`. Bez `#herna` beze změny (`#solo`, série, výzva).
+- **Rozhodnuto:** sázka v Herně = „Jen o čest“ (Herna sčítá skóre sama, sázka s kafem by tam seděla špatně); začíná seat 0 jako v ostré hře; adresa iframe se nikdy nemění (reload sedne zpět na své místo z localStorage); když jsou obě místa v dokumentu cizí (smazané úložiště), platí `seat` z adresy; `remember()` se v Herně nevolá (nezaplevelí „Naposledy hrané“).
+- **Ověřeno (příkaz → exit), lokálně:** `node tests/herna.cjs http://127.0.0.1:8802/` 50/50 (0), engine 309 PASS (0), net 64/64 (0), `duel --variant both` 84/84 (0), mobile 66/66 (0), solo 21/21 (0).
+- **Otevřené / NEOVĚŘENO:** běh proti skutečné Herně (jen vlastní rodič emulující protokol); živé výsledky viz níže, pokud jsou doplněny.
+
 ## 2026-10-31 noc – sólo režim (Trénink)
 - **Hotovo:** „Zkusit sám proti robotovi“ na úvodu + adresa `#solo`. Robot = `suggestShot` s pauzou 0,9 s a rozptylem ±8 % (asi 2 ze 3 střel nesedí přesně). Bez sync, odkazu i série, ve hře je „Trénink“, na konci „Znovu“ a „Vyzvat soupeře“. Test `tests/solo.cjs` (Chromium 1440×900 + WebKit iPhone 13, celá partie, 0 požadavků na mantledb).
 - **Ověřeno lokálně:** solo 21/21, duel 84/84, mobile 66/66, engine 309, net 64/64 (vše exit 0). ŽIVĚ na Pages (2bd75dd): `node tests/solo.cjs <Pages URL>` 21/21, duel `--variant both` 84/84 (exit 0).

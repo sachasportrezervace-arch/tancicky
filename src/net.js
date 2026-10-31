@@ -121,9 +121,9 @@
   }
 
   // ---------- místnost ----------
-  TankNet.create = async (g, seat) => {
+  TankNet.create = async (g, seat, forcedId) => {   // forcedId: id místnosti z Herny (jinak náhodné)
     seat = seat === 1 ? 1 : 0;
-    const id = randId(12);
+    const id = typeof forcedId === "string" && /^[0-9a-z]{6,24}$/.test(forcedId) ? forcedId : randId(12);
     const doc = { app: APP, v: 1, s0: seat === 0 ? device : "", s1: seat === 1 ? device : "", u: Date.now(), g };
     await saveDoc(id, doc);
     TankNet.setSeat(id, seat);

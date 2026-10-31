@@ -545,7 +545,7 @@
   }
   function updateWait() {
     var el = $("waitPill"), show = S.mode === "online" && view === "play" && (!S.s0 || !S.s1) && S.seat != null;
-    el.hidden = !show; if (show) { var other = S.seat === 0 ? 1 : 0; el.textContent = "Čekáme, až " + nameOf(other) + " přijme výzvu. Odkaz zkopíruješ tlačítkem nahoře."; }
+    el.hidden = !show; if (show) { var other = S.seat === 0 ? 1 : 0; el.textContent = H ? "Čekáme, až " + nameOf(other) + " naskočí do hry." : "Čekáme, až " + nameOf(other) + " přijme výzvu. Odkaz zkopíruješ tlačítkem nahoře."; }
   }
 
   /* ---------------- bublina se vzkazem (DOM, aby šla přečíst i čtečkou) ---------------- */
@@ -662,6 +662,7 @@
     // mezitím mohl dorazit další tah
     if (S.g && S.shown && S.shown.t.length < S.g.t.length && !S.pumping) pump();
     if (S.solo && view === "play" && !st.matchOver && st.cur === BOT) botTurn();
+    hernaSync();
   }
 
   /* ---------------- trénink: robot (jen lokálně, nic se neposílá) ---------------- */
@@ -913,6 +914,7 @@
     leave();
   });
   function leave() {
+    if (H) { boot(); return; } // v Herně se z hry neodchází, zpět vede lišta Herny
     if (NET && NET.unwatch) NET.unwatch();
     resetSession(); history.pushState(null, "", location.pathname + location.search); showSetup();
   }
@@ -923,11 +925,11 @@
   function onDoc(doc, force) {
     if (!doc || !doc.g || (!force && doc.v <= S.v)) return;
     S.doc = doc; S.v = doc.v; S.s0 = doc.s0 || ""; S.s1 = doc.s1 || ""; S.g = doc.g;
-    remember();
+    remember(); hernaSync();
     if (view === "intro" || view === "setup" || view === "info") { if (view === "intro") renderIntro(); return; }
     pump(); updateWait();
   }
-  function remember() { if (S.id && S.g) NET.remember(S.id, { n: S.g.n, me: S.seat, gi: S.g.gi }); }
+  function remember() { if (!H && S.id && S.g) NET.remember(S.id, { n: S.g.n, me: S.seat, gi: S.g.gi }); }
   function startWatch() { NET.watch(S.id, onDoc, function () { return S.v; }, onNet); }
   function enterGame() { setView("play"); pump(); layout(); if (S.state) { updateHud(S.state); updateCtrl(); } }
 
@@ -1035,8 +1037,67 @@
   }
   $("infoRetry").addEventListener("click", boot); $("infoNew").addEventListener("click", leave);
 
+  /* ---------------- Herna (protokol verze 1, viz react-apps/HERNA-PROTOKOL.md) ---------------- */
+  var H = null, hernaTok = 0, hernaFaze = "", hernaDone = {};
+  function parseHerna() {
+    var raw = (location.hash || "").replace(/^#/, ""), o = {};
+    if (raw.indexOf("herna=1") < 0) return null;
+    raw.split("&").forEach(function (kv) { var i = kv.indexOf("="); if (i > 0) o[kv.slice(0, i)] = kv.slice(i + 1); });
+    if (o.herna !== "1" || !/^[0-9a-z]{6,24}$/.test(o.r || "") || (o.seat !== "0" && o.seat !== "1")) return null;
+    var nm = (o.names || "").split(",").map(function (s) { var d = s; try { d = decodeURIComponent(s); } catch (e) { /* nechat syrové */ } return d.trim().slice(0, 16); });
+    return { m: o.m || "", r: o.r, seat: o.seat === "1" ? 1 : 0, names: [nm[0] || "Hráč 1", nm[1] || "Hráč 2"], zaklada: o.zaklada === "1" };
+  }
+  function doHerny(z) { if (H && window.parent !== window) attempt(function () { window.parent.postMessage(Object.assign({ herna: 1 }, z), "*"); }); }
+  function hernaPhase(f) { if (f !== hernaFaze) { hernaFaze = f; doHerny({ typ: "stav", faze: f }); } }
+  // fáze podle dokumentu a přehrané partie; výsledek jednou za partii (r:gi), Herna duplicity sama zahodí
+  function hernaSync() {
+    if (!H || !S.id || !S.g) return;
+    var over = !!(S.state && S.state.matchOver && S.shown);
+    hernaPhase(!S.s0 || !S.s1 ? "ceka" : over ? "konec" : "hraje");
+    if (over && S.s0 && S.s1) {
+      var key = S.id + ":" + S.shown.gi;
+      if (!hernaDone[key]) { hernaDone[key] = 1; var w = S.state.winner; doHerny({ typ: "vysledek", partie: key, vitez: w === 0 || w === 1 ? w : null }); }
+    }
+  }
+  $("otherGameBtn").addEventListener("click", function () { doHerny({ typ: "jina-hra" }); });
+  async function hernaBoot(h) {
+    var tok = ++hernaTok;
+    resetSession(); H = h; document.body.dataset.herna = "1";
+    S.mode = "online"; S.id = h.r;
+    doHerny({ typ: "pripraveno" }); hernaFaze = ""; hernaPhase("ceka");
+    info(h.zaklada ? "Otevírám hru…" : "Čeká se, až hra naskočí…", "", false, "loading");
+    var doc;
+    for (;;) {
+      var d, failed = false;
+      try { d = await NET.load(h.r); } catch (e) { failed = true; }
+      if (tok !== hernaTok) return;
+      if (!failed && d) { doc = d; break; }
+      if (!failed && h.zaklada) { // dokument ještě není a tenhle hráč hru vybral: založí ho rovnou se jmény z Herny
+        var g = { n: h.names.slice(), k: "6", kc: "", w: [0, 0], gi: 1, seed: rnd31(), start: 0, t: [] };
+        try { var cr = await NET.create(g, h.seat, h.r); if (tok !== hernaTok) return; doc = cr.doc; break; } catch (e) { if (tok !== hernaTok) return; }
+      }
+      await sleep(1000); if (tok !== hernaTok) return;
+    }
+    if (!doc.g || !Array.isArray(doc.g.t)) { S.mode = null; info("Tahle hra tu není.", "Herna ji otevřela se špatným odkazem.", true, "error"); return; }
+    S.doc = doc; S.v = doc.v; S.g = doc.g; S.s0 = doc.s0 || ""; S.s1 = doc.s1 || "";
+    var seat = NET.mySeat(h.r); if (seat == null) seat = doc.s0 === NET.device ? 0 : doc.s1 === NET.device ? 1 : null;
+    while (seat == null) { // sednout na volné místo jako „Přijmout výzvu“, jen bez tlačítka a bez introMine
+      var a; try { a = await NET.accept(h.r); } catch (e) { a = undefined; }
+      if (tok !== hernaTok) return;
+      if (a === undefined) { await sleep(1000); if (tok !== hernaTok) return; continue; }
+      if (a.doc) { S.doc = a.doc; S.v = a.doc.v; S.g = a.doc.g; S.s0 = a.doc.s0 || ""; S.s1 = a.doc.s1 || ""; }
+      seat = a.seat != null ? a.seat : h.seat; // obě místa cizí (smazané úložiště): kdo je kdo, ručí Herna
+      NET.setSeat(h.r, seat);
+    }
+    S.seat = seat; S.free = !S.s0 ? 0 : !S.s1 ? 1 : null;
+    startWatch(); enterGame(); updateWait(); hernaSync();
+  }
+
   function boot() {
     if (NET && NET.unwatch) NET.unwatch();
+    var hh = parseHerna();
+    if (hh) { hernaBoot(hh); return; }
+    hernaTok++; H = null; document.body.removeAttribute("data-herna");
     var m = /^#r\.([0-9a-z]{6,24})$/.exec(location.hash || "");
     if (m) { openRoom(m[1]); return; }
     if (location.hash === "#solo") { showSetup(); startSolo(); return; }

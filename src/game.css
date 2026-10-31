@@ -532,3 +532,9 @@ body[data-view="end"] .a2hs, body[data-view="play"] .a2hs { display: none; }
 @keyframes introin { from { opacity: 0; transform: translate(-50%, -42%) scale(.92); } }
 .unlock { margin: 0; display: inline-flex; align-items: center; padding: 8px 18px; border-radius: var(--r-full); background: var(--ink); color: #fff; font-weight: 700; font-size: 16px; }
 @media (orientation: landscape) and (max-height: 620px) { .roundintro { top: 40%; padding: 10px 22px 12px; } .ri-kolo { font-size: 26px; } .ri-map { font-size: 16px; } .modchip { height: 30px; font-size: 12.5px; } }
+
+/* ---- v Herně (protokol: #herna=1): bez sdílení odkazu, "Zkusit sám", odkazů ven a celé obrazovky; zpět vede lišta Herny ---- */
+body[data-herna] #soloBtn, body[data-herna] #challengeBtn, body[data-herna] #copyTopBtn, body[data-herna] #copyEndBtn,
+body[data-herna] #leaveBtn, body[data-herna] #menuBtn, body[data-herna] #infoNew, body[data-herna] #fullscreenBtn,
+body[data-herna] #a2hs { display: none !important; }
+body:not([data-herna]) #otherGameBtn { display: none !important; }
