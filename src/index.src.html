@@ -3,18 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<meta name="theme-color" content="#2a1a2e">
+<meta name="theme-color" content="#CDEBEF">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Tančíky">
 <meta name="format-detection" content="telephone=no">
 <meta name="description" content="Tančíky: tahová tanková přestřelka pro dva na jednom odkazu.">
 <title>Tančíky</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Lilita+One&display=swap" rel="stylesheet">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232a1a2e'/%3E%3Crect x='9' y='38' width='46' height='14' rx='7' fill='%234a2f45'/%3E%3Crect x='13' y='27' width='38' height='17' rx='7' fill='%23e8543c'/%3E%3Ccircle cx='32' cy='27' r='10' fill='%23f2795f'/%3E%3Crect x='36' y='14' width='22' height='7' rx='3' transform='rotate(-25 36 20)' fill='%23f6c76a'/%3E%3C/svg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23CDEBEF'/%3E%3Cpath d='M0 48c14-6 30-6 64 0v16H0z' fill='%23F2B36B'/%3E%3Crect x='10' y='40' width='44' height='12' rx='6' fill='%233A3152'/%3E%3Cpath d='M12 42c0-12 8-20 20-20s20 8 20 20z' fill='%23F25A45'/%3E%3Ccircle cx='27' cy='34' r='4.5' fill='%23fff'/%3E%3Ccircle cx='39' cy='34' r='4.5' fill='%23fff'/%3E%3Ccircle cx='28.5' cy='34.5' r='2.2' fill='%232B2242'/%3E%3Ccircle cx='40.5' cy='34.5' r='2.2' fill='%232B2242'/%3E%3C/svg%3E">
 <style>/*@include game.css*/</style>
 </head>
 <body data-view="setup">
@@ -22,7 +22,6 @@
 <!-- ikony: jedna sada, 24x24, tah 2, kulaté konce -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
   <defs>
-    <filter id="fi1" x="-10%" y="-10%" width="120%" height="140%"><feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#10060f" flood-opacity=".45"/></filter>
     <symbol id="i-bomb" viewBox="0 0 24 24"><circle cx="10.5" cy="14.5" r="7" fill="currentColor" fill-opacity=".16"/><path d="M15.5 9.2 17.6 7c1.2-1.2 2.6-1.2 3.6-.4M20 2.8v1.6M22.4 5.2H21M18.6 3.2l-.9.9"/><path d="M6.8 13.2a4 4 0 0 1 2.6-2.4"/></symbol>
     <symbol id="i-triple" viewBox="0 0 24 24"><circle cx="6.5" cy="16.5" r="3.4" fill="currentColor" fill-opacity=".16"/><circle cx="17.5" cy="16.5" r="3.4" fill="currentColor" fill-opacity=".16"/><circle cx="12" cy="7" r="3.4" fill="currentColor" fill-opacity=".16"/><path d="M12 12v2.4M9 19.6h6" opacity=".55"/></symbol>
     <symbol id="i-mirv" viewBox="0 0 24 24"><circle cx="12" cy="6.2" r="3.6" fill="currentColor" fill-opacity=".16"/><path d="M10.4 9.6 6.4 15.2M12 10v5M13.6 9.6l4 5.6" stroke-dasharray="1.6 2.4"/><circle cx="5.4" cy="18.6" r="2.2"/><circle cx="12" cy="19.6" r="2.2"/><circle cx="18.6" cy="18.6" r="2.2"/></symbol>
@@ -60,6 +59,13 @@
     <symbol id="i-cart" viewBox="0 0 24 24"><path d="M5 8.4h14l-1 12H6z" fill="currentColor" fill-opacity=".16"/><path d="M9 8.4V6.6a3 3 0 0 1 6 0v1.8"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24"><path d="m5.4 12.6 4.4 4.4L18.8 7.4"/></symbol>
     <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="i-chat" viewBox="0 0 24 24"><path d="M5 4.5h14a2 2 0 0 1 2 2v8.5a2 2 0 0 1-2 2h-7.5L6.5 21v-4H5a2 2 0 0 1-2-2V6.5a2 2 0 0 1 2-2z"/></symbol>
+    <symbol id="i-m-vichr" viewBox="0 0 24 24"><path d="M3 9h11a3 3 0 1 0-3-3M3 15h14a3 3 0 1 1-3 3M3 12h6"/></symbol>
+    <symbol id="i-m-mesic" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></symbol>
+    <symbol id="i-m-tezko" viewBox="0 0 24 24"><path d="M7 9h10l3 11H4z"/><circle cx="12" cy="5.5" r="2.2"/></symbol>
+    <symbol id="i-m-zrcadlo" viewBox="0 0 24 24"><path d="M4 8h13M13 4l4 4-4 4M20 16H7M11 12l-4 4 4 4"/></symbol>
+    <symbol id="i-m-bohaci" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 7.5v9M9.5 10.2c0-1 1-1.500 2.500-1.500s2.500.6 2.500 1.500-1 1.300-2.500 1.500-2.500.7-2.500 1.600 1 1.400 2.500 1.400 2.500-.5 2.500-1.400"/></symbol>
+    <symbol id="i-m-kratery" viewBox="0 0 24 24"><path d="M3 8.500c2 0 3 1.500 4 3.500.8 1.600 2.300 3 5 3s4.200-1.400 5-3c1-2 2-3.500 4-3.500M7 19.500h10"/></symbol>
     <symbol id="i-send" viewBox="0 0 24 24"><path d="M21.4 2.8 2.6 10.4l7 2.8 2.6 7.2z"/></symbol>
     <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 2.6l2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17l-5.6 3 1.1-6.3L2.9 9.3l6.3-.9z" stroke-linejoin="round"/></symbol>
     <symbol id="i-fullscreen" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
@@ -68,6 +74,11 @@
     <symbol id="i-focus" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.2" fill="currentColor" fill-opacity=".16"/><circle cx="12" cy="12" r="1.8"/><path d="M12 2.8v4M12 17.2v4M2.8 12h4M17.2 12h4"/></symbol>
     <symbol id="i-sound" viewBox="0 0 24 24"><path d="M4 9.6h3.6L12.4 6v12l-4.8-3.6H4z" fill="currentColor" fill-opacity=".16"/><path d="M15.6 9.2a4.2 4.2 0 0 1 0 5.6M18.2 6.6a7.8 7.8 0 0 1 0 10.8"/></symbol>
     <symbol id="i-mute" viewBox="0 0 24 24"><path d="M4 9.6h3.6L12.4 6v12l-4.8-3.6H4z" fill="currentColor" fill-opacity=".16"/><path d="m16 9.6 5 4.8M21 9.6l-5 4.8"/></symbol>
+    <symbol id="i-gift" viewBox="0 0 24 24"><rect x="3.5" y="9.4" width="17" height="11.1" rx="1.8" fill="currentColor" fill-opacity=".16"/><path d="M12 9.4v11.1M3.5 13.6h17"/><path d="M12 9.4c-2.7 0-5-.9-5-2.9C7 4.9 8.2 4.2 9.3 4.2c1.8 0 2.7 2.4 2.7 5.2 0-2.8.9-5.2 2.7-5.2 1.1 0 2.3.7 2.3 2.3 0 2-2.3 2.9-5 2.9z"/></symbol>
+    <symbol id="i-pirko" viewBox="0 0 24 24"><path d="M20 4C12.4 3.6 6.8 8.4 6.8 15.2L4 20" /><path d="M20 4c.4 7.2-4.2 12-11.4 11.4M20 4 9.6 14.6M12.4 10.6h5.2M10 13h4.4" fill="none"/><path d="M20 4C12.4 3.6 6.8 8.4 6.8 15.2 13 17 19.6 12.6 20 4z" fill="currentColor" fill-opacity=".16" stroke="none"/></symbol>
+    <symbol id="i-konfety" viewBox="0 0 24 24"><path d="M4 20.2 8.8 8l7.2 7.2z" fill="currentColor" fill-opacity=".16"/><path d="M4 20.2 8.8 8l7.2 7.2zM13.2 4.6l.7 2.4M18.4 8.6l2.4-.8M16.6 3.6l-.9 1.8M20.2 13.2l-2.4-.5"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5.6" cy="12" r="1.9" fill="currentColor"/><circle cx="12" cy="12" r="1.9" fill="currentColor"/><circle cx="18.4" cy="12" r="1.9" fill="currentColor"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M3.5 12h15M13 6l6 6-6 6"/></symbol>
     <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 14.6V3.4M8.2 7 12 3.2 15.8 7M6.4 10.4H5.2v10h13.6v-10h-1.2"/></symbol>
   </defs>
 </svg>
@@ -85,47 +96,7 @@
     <div class="scroll">
       <div class="setup-wrap">
         <header class="logo">
-          <svg class="logo-art" viewBox="0 0 320 150" aria-hidden="true">
-            <defs>
-              <filter id="ps" x="-10%" y="-10%" width="120%" height="140%"><feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#10060f" flood-opacity=".45"/></filter>
-              <filter id="ps2" x="-10%" y="-10%" width="120%" height="140%"><feDropShadow dx="0" dy="1.5" stdDeviation="1.4" flood-color="#10060f" flood-opacity=".5"/></filter>
-            </defs>
-            <g filter="url(#ps)">
-              <circle cx="238" cy="52" r="34" fill="#f8d98a"/>
-              <circle cx="238" cy="52" r="24" fill="#f6c76a"/>
-              <circle cx="238" cy="52" r="14" fill="#f2a85a"/>
-            </g>
-            <g filter="url(#ps)">
-              <path d="M0 108c30-26 60-30 96-12 36 18 62 4 92-8 40-16 90-8 132 14v48H0z" fill="#7a4a63"/>
-              <path d="M0 126c40-18 76-16 112-4 40 14 74 6 108-6 38-12 74-4 100 8v26H0z" fill="#b8643f"/>
-              <path d="M0 138c50-8 100-6 160-2 60 4 110 2 160-4v18H0z" fill="#5a8a4a"/>
-            </g>
-            <g filter="url(#ps2)" transform="translate(44 70)">
-              <rect x="0" y="34" width="62" height="19" rx="9.5" fill="#4a2f45"/>
-              <circle cx="11" cy="43.5" r="4.6" fill="#f3dcb2"/><circle cx="31" cy="43.5" r="4.6" fill="#f3dcb2"/><circle cx="51" cy="43.5" r="4.6" fill="#f3dcb2"/>
-              <rect x="38" y="6" width="34" height="11" rx="5.5" transform="rotate(-22 38 12)" fill="#f6c76a"/>
-              <rect x="5" y="14" width="52" height="26" rx="11" fill="#e8543c"/>
-              <path d="M10 22c0-4 3-6 7-6h28" stroke="#f58a74" stroke-width="3" fill="none" stroke-linecap="round"/>
-              <circle cx="31" cy="14" r="13" fill="#f2795f"/>
-              <circle cx="25.5" cy="12" r="4.4" fill="#fff6e4"/><circle cx="37" cy="12" r="4.4" fill="#fff6e4"/>
-              <circle cx="27" cy="12.6" r="2" fill="#2a1a2e"/><circle cx="38.4" cy="12.6" r="2" fill="#2a1a2e"/>
-              <path d="M25 19.5q6.5 4.5 13 0" stroke="#2a1a2e" stroke-width="2.2" fill="none" stroke-linecap="round"/>
-              <path d="M8 4v-9" stroke="#2a1a2e" stroke-width="2" stroke-linecap="round"/><path d="M8-5l11 3-11 4z" fill="#f6c76a"/>
-            </g>
-            <g filter="url(#ps2)" transform="translate(276 70) scale(-1 1)">
-              <rect x="0" y="34" width="62" height="19" rx="9.5" fill="#4a2f45"/>
-              <circle cx="11" cy="43.5" r="4.6" fill="#f3dcb2"/><circle cx="31" cy="43.5" r="4.6" fill="#f3dcb2"/><circle cx="51" cy="43.5" r="4.6" fill="#f3dcb2"/>
-              <rect x="38" y="-6" width="34" height="11" rx="5.5" transform="rotate(-48 38 0)" fill="#f6c76a"/>
-              <rect x="5" y="14" width="52" height="26" rx="11" fill="#2e9ca6"/>
-              <path d="M10 22c0-4 3-6 7-6h28" stroke="#6fc9cd" stroke-width="3" fill="none" stroke-linecap="round"/>
-              <circle cx="31" cy="14" r="13" fill="#47b3b8"/>
-              <circle cx="25.5" cy="12" r="4.4" fill="#fff6e4"/><circle cx="37" cy="12" r="4.4" fill="#fff6e4"/>
-              <circle cx="24.4" cy="12.6" r="2" fill="#2a1a2e"/><circle cx="35.8" cy="12.6" r="2" fill="#2a1a2e"/>
-              <ellipse cx="31" cy="21" rx="3.4" ry="2.6" fill="#2a1a2e"/>
-              <path d="M8 4v-9" stroke="#2a1a2e" stroke-width="2" stroke-linecap="round"/><path d="M8-5l11 3-11 4z" fill="#f6c76a"/>
-            </g>
-            <path d="M118 70C146 18 190 18 214 64" stroke="#fff6e4" stroke-width="3" stroke-dasharray="0.1 8" stroke-linecap="round" fill="none" opacity=".85"/>
-          </svg>
+          <canvas class="sprite logo-art" data-sprite="logo" width="320" height="160" aria-hidden="true"></canvas>
           <h1>Tančíky</h1>
           <p class="tag">Dva tanky, jeden odkaz, nulový soucit.</p>
         </header>
@@ -171,16 +142,7 @@
   <section class="screen" id="v-share" data-screen="share">
     <div class="scroll">
       <div class="setup-wrap narrow">
-        <svg class="art-envelope" viewBox="0 0 160 110" aria-hidden="true">
-          <defs><filter id="es" x="-10%" y="-10%" width="120%" height="140%"><feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#10060f" flood-opacity=".45"/></filter></defs>
-          <g filter="url(#es)">
-            <rect x="14" y="22" width="132" height="80" rx="8" fill="#f6c76a"/>
-            <path d="M14 30l66 42 66-42" fill="#e9a948"/>
-            <path d="M14 98l50-38M146 98 96 60" stroke="#c98a3a" stroke-width="3" fill="none" stroke-linecap="round"/>
-            <circle cx="80" cy="74" r="13" fill="#e8543c"/>
-            <path d="M74 74h12M80 68v12" stroke="#fff6e4" stroke-width="3" stroke-linecap="round" transform="rotate(45 80 74)"/>
-          </g>
-        </svg>
+        <canvas class="sprite art-duo" data-sprite="share" width="300" height="140" aria-hidden="true"></canvas>
         <h1 class="h1">Výzva je venku.<br>Teď ji pošli.</h1>
         <p class="lead" id="shareMeta">Odkaz stačí poslat jednou.</p>
         <textarea id="shareMsg" rows="6" readonly aria-label="Zpráva s odkazem"></textarea>
@@ -196,14 +158,7 @@
   <section class="screen" id="v-intro" data-screen="intro">
     <div class="scroll">
       <div class="setup-wrap narrow">
-        <svg class="art-vs" viewBox="0 0 240 90" aria-hidden="true">
-          <defs><filter id="vs" x="-10%" y="-10%" width="120%" height="140%"><feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#10060f" flood-opacity=".45"/></filter></defs>
-          <g filter="url(#vs)">
-            <circle cx="52" cy="46" r="34" fill="#e8543c"/><circle cx="52" cy="46" r="23" fill="#f2795f"/>
-            <circle cx="188" cy="46" r="34" fill="#2e9ca6"/><circle cx="188" cy="46" r="23" fill="#47b3b8"/>
-            <path d="M120 14l9 22 23 3-17 16 5 24-20-13-20 13 5-24-17-16 23-3z" fill="#f6c76a"/>
-          </g>
-        </svg>
+        <canvas class="sprite art-duo" data-sprite="vs" width="300" height="140" aria-hidden="true"></canvas>
         <h1 class="h1" id="introTitle">Někdo tě vyzývá na tančíky.</h1>
         <p class="lead" id="introStake"></p>
         <div class="actions">
@@ -225,22 +180,7 @@
   <section class="screen" id="v-info" data-screen="info">
     <div class="scroll">
       <div class="setup-wrap narrow center">
-        <div class="info-art" id="infoArt" data-kind="loading" aria-hidden="true">
-          <svg class="a-loading" viewBox="0 0 160 110">
-            <g filter="url(#fi1)"><path d="M0 92c26-14 52-16 80-6 28 10 52 6 80-6v30H0z" fill="#7a4a63"/><path d="M0 100c30-8 60-6 90 0 24 4 46 2 70-4v20H0z" fill="#5a8a4a"/></g>
-            <g class="bob" filter="url(#fi1)" transform="translate(48 34)"><path d="M32 4V-8" stroke="#2a1a2e" stroke-width="2" stroke-linecap="round"/><path d="M32-8l11 3-11 4z" fill="#f6c76a"/>
-              <rect x="30" y="14" width="42" height="9" rx="4.5" transform="rotate(-14 30 18)" fill="#f6c76a"/><rect x="0" y="34" width="64" height="19" rx="9.5" fill="#4a2f45"/>
-              <rect x="6" y="14" width="52" height="26" rx="11" fill="#e8543c"/><circle cx="32" cy="14" r="13" fill="#f2795f"/><circle cx="26.5" cy="12" r="4.4" fill="#fff6e4"/><circle cx="38" cy="12" r="4.4" fill="#fff6e4"/><circle cx="28" cy="12.6" r="2" fill="#2a1a2e"/><circle cx="39.4" cy="12.6" r="2" fill="#2a1a2e"/><path d="M27 20q5.5 3.6 11 0" stroke="#2a1a2e" stroke-width="2.2" fill="none" stroke-linecap="round"/>
-              <g class="wheel"><circle cx="12" cy="43.5" r="5" fill="#f3dcb2"/><path d="M12 39.5v8M8 43.5h8" stroke="#a07a58" stroke-width="1.4"/></g><g class="wheel"><circle cx="32" cy="43.5" r="5" fill="#f3dcb2"/><path d="M32 39.5v8M28 43.5h8" stroke="#a07a58" stroke-width="1.4"/></g><g class="wheel"><circle cx="52" cy="43.5" r="5" fill="#f3dcb2"/><path d="M52 39.5v8M48 43.5h8" stroke="#a07a58" stroke-width="1.4"/></g></g></svg>
-          <svg class="a-missing" viewBox="0 0 160 110"><g filter="url(#fi1)"><path d="M0 92c26-14 52-16 80-6 28 10 52 6 80-6v30H0z" fill="#7a4a63"/><path d="M0 100c30-8 60-6 90 0 24 4 46 2 70-4v20H0z" fill="#5a8a4a"/></g>
-            <g filter="url(#fi1)" transform="translate(42 38) rotate(-6 32 30)"><rect x="0" y="34" width="64" height="19" rx="9.5" fill="#4a2f45"/><circle cx="12" cy="43.5" r="5" fill="#f3dcb2"/><circle cx="32" cy="43.5" r="5" fill="#f3dcb2"/><circle cx="52" cy="43.5" r="5" fill="#f3dcb2"/>
-              <rect x="6" y="14" width="52" height="26" rx="11" fill="#7a6672"/><circle cx="32" cy="14" r="13" fill="#948190"/><path d="M23 9l7 7M30 9l-7 7M34 9l7 7M41 9l-7 7" stroke="#2a1a2e" stroke-width="2.2" stroke-linecap="round"/><path d="M27 21q5 -3 10 0" stroke="#2a1a2e" stroke-width="2.2" fill="none" stroke-linecap="round"/>
-              <rect x="44" y="12" width="30" height="9" rx="4.5" transform="rotate(24 44 16)" fill="#b9a38a"/></g>
-            <g filter="url(#fi1)"><path d="M118 20v38" stroke="#2a1a2e" stroke-width="2.4" stroke-linecap="round"/><path d="M118 20h26l-5 10 5 10h-26z" fill="#f6c76a"/><path d="M127 25.4c0-3.4 7-3.4 7 0 0 2.6-3.5 2.6-3.5 5.2M130.5 34.4h.01" stroke="#2a1a2e" stroke-width="2.2" fill="none" stroke-linecap="round"/></g></svg>
-          <svg class="a-error" viewBox="0 0 160 110"><g filter="url(#fi1)"><path d="M0 92c26-14 52-16 80-6 28 10 52 6 80-6v30H0z" fill="#7a4a63"/><path d="M0 100c30-8 60-6 90 0 24 4 46 2 70-4v20H0z" fill="#5a8a4a"/></g>
-            <g filter="url(#fi1)"><path d="M0 40h34c8 0 12 6 12 14" stroke="#4a2f45" stroke-width="7" stroke-linecap="round" fill="none"/><rect x="38" y="46" width="22" height="16" rx="5" transform="rotate(14 49 54)" fill="#f6c76a"/><path d="M160 66h-34c-8 0-12-6-12-14" stroke="#4a2f45" stroke-width="7" stroke-linecap="round" fill="none"/><rect x="100" y="44" width="22" height="16" rx="5" transform="rotate(-14 111 52)" fill="#e8543c"/>
-              <path class="spark" d="M78 40l-6 14 8-3-4 15 12-18-8 3 5-13z" fill="#fff1d6"/></g></svg>
-        </div>
+        <canvas class="sprite art-info" id="infoArt" data-sprite="info" data-kind="loading" width="220" height="140" aria-hidden="true"></canvas>
         <h1 class="h1" id="infoTitle">Načítám…</h1>
         <p class="lead" id="infoMeta"></p>
         <div class="actions">
@@ -256,53 +196,87 @@
     <div class="play">
       <header class="hud" id="hud">
         <div class="pcard" id="pc0" data-p="0">
-          <div class="prow"><b class="pname"></b><span class="pips" aria-label="Vyhraná kola"></span></div>
-          <div class="hpbar"><i></i><span class="hptxt"></span></div>
-          <div class="pmeta"><span class="coins"><svg class="ic"><use href="#i-coin"/></svg><b></b></span><span class="shieldtag" hidden><svg class="ic"><use href="#i-shield"/></svg>štít</span></div>
+          <canvas class="face" width="96" height="96" aria-hidden="true"></canvas>
+          <div class="pinfo">
+            <div class="prow"><b class="pname"></b><span class="pips" aria-label="Vyhraná kola"></span><span class="hptxt"></span></div>
+            <div class="hpbar"><i></i></div>
+            <div class="pmeta"><span class="coins"><svg class="ic"><use href="#i-coin"/></svg><b></b></span><span class="shieldtag" hidden><svg class="ic"><use href="#i-shield"/></svg>štít</span><span class="ragetag" hidden>Vztek +25 %</span></div>
+          </div>
         </div>
         <div class="hudmid">
           <div class="round" id="roundTxt">Kolo 1</div>
-          <div class="wind" id="windBox" title="Vítr">
-            <svg class="sock" id="windSock" viewBox="0 0 64 30" aria-hidden="true">
-              <path class="pole" d="M6 3v26"/><circle class="knob" cx="6" cy="2.6" r="2.4"/>
-              <g id="sockCloth"><path class="s1" d="M8 1.8 19.5 2.5v9L8 12.2z"/><path class="s2" d="M19.5 2.5 31 3.2v7.6l-11.5.7z"/><path class="s3" d="M31 3.2l11.5.7v6.2L31 10.8z"/><path class="s4" d="M42.5 3.9 54 4.6v4.8l-11.5.7z"/></g>
-            </svg>
-            <b id="windTxt">0</b>
-          </div>
           <div class="series" id="seriesTxt"></div>
         </div>
         <div class="pcard right" id="pc1" data-p="1">
-          <div class="prow"><b class="pname"></b><span class="pips" aria-label="Vyhraná kola"></span></div>
-          <div class="hpbar"><i></i><span class="hptxt"></span></div>
-          <div class="pmeta"><span class="coins"><svg class="ic"><use href="#i-coin"/></svg><b></b></span><span class="shieldtag" hidden><svg class="ic"><use href="#i-shield"/></svg>štít</span></div>
+          <canvas class="face" width="96" height="96" aria-hidden="true"></canvas>
+          <div class="pinfo">
+            <div class="prow"><b class="pname"></b><span class="pips" aria-label="Vyhraná kola"></span><span class="hptxt"></span></div>
+            <div class="hpbar"><i></i></div>
+            <div class="pmeta"><span class="coins"><svg class="ic"><use href="#i-coin"/></svg><b></b></span><span class="shieldtag" hidden><svg class="ic"><use href="#i-shield"/></svg>štít</span><span class="ragetag" hidden>Vztek +25 %</span></div>
+          </div>
         </div>
       </header>
 
       <div class="stagewrap" id="stageWrap">
         <div class="stage" id="stage">
           <canvas id="cv" aria-label="Bojiště" role="img"></canvas>
+          <div class="windpill">
+            <div class="wind" id="windBox" title="Vítr">
+              <span class="wl">vítr</span>
+              <span class="wbar" aria-hidden="true"><i></i></span>
+              <svg class="ic warrow" aria-hidden="true"><use href="#i-arrow"/></svg><b id="windTxt">0</b>
+            </div>
+            <div class="modchip" id="modChip" hidden><svg class="ic" aria-hidden="true"><use href="#i-m-vichr"/></svg><span></span></div>
+          </div>
           <div class="status" id="statusPill">…</div>
+          <button type="button" class="skip" id="skipReplay" hidden><svg class="ic"><use href="#i-skip"/></svg>Přeskočit</button>
           <div class="tools" role="toolbar" aria-label="Nástroje">
             <button type="button" class="icon" id="fullscreenBtn" title="Celá obrazovka" aria-label="Celá obrazovka" hidden><svg class="ic"><use href="#i-fullscreen"/></svg></button>
-            <button type="button" class="icon" id="muteBtn" title="Zvuk a vibrace" aria-label="Zvuk a vibrace" aria-pressed="false"><svg class="ic"><use href="#i-sound"/></svg></button>
-            <button type="button" class="icon" id="copyTopBtn" title="Zkopírovat odkaz" aria-label="Zkopírovat odkaz"><svg class="ic"><use href="#i-link"/></svg></button>
-            <button type="button" class="icon" id="leaveBtn" title="Zpět do menu" aria-label="Zpět do menu"><svg class="ic"><use href="#i-home"/></svg></button>
+            <button type="button" class="icon more" id="moreBtn" title="Další nástroje" aria-label="Další nástroje" aria-haspopup="true" aria-expanded="false" aria-controls="toolMenu"><svg class="ic"><use href="#i-more"/></svg></button>
+            <div class="toolmenu" id="toolMenu">
+              <div class="c-note" id="noteRow">
+                <svg class="ic note-ic" aria-hidden="true"><use href="#i-chat"/></svg>
+                <input id="noteInput" maxlength="40" placeholder="Vzkaz soupeři" autocomplete="off" aria-label="Vzkaz k tahu">
+              </div>
+              <button type="button" class="icon" id="shopBtn" hidden title="Obchod" aria-label="Obchod"><svg class="ic"><use href="#i-cart"/></svg><span class="tl">Obchod</span></button>
+              <button type="button" class="icon" id="muteBtn" title="Zvuk a vibrace" aria-label="Zvuk a vibrace" aria-pressed="false"><svg class="ic"><use href="#i-sound"/></svg><span class="tl">Zvuk a vibrace</span></button>
+              <button type="button" class="icon" id="copyTopBtn" title="Zkopírovat odkaz" aria-label="Zkopírovat odkaz"><svg class="ic"><use href="#i-link"/></svg><span class="tl">Zkopírovat odkaz</span></button>
+              <button type="button" class="icon" id="leaveBtn" title="Zpět do menu" aria-label="Zpět do menu"><svg class="ic"><use href="#i-home"/></svg><span class="tl">Zpět do menu</span></button>
+            </div>
           </div>
+          <canvas class="mini" id="miniMap" hidden aria-label="Minimapa bojiště: klepnutím přesuneš pohled" role="img"></canvas>
           <button type="button" class="icon zoomfit" id="zoomFit" title="Celé bojiště" aria-label="Celé bojiště"><svg class="ic"><use href="#i-fit"/></svg></button>
-          <div class="hint" id="aimHint" hidden role="note"><p><b>Míření:</b> táhni od tanku.<br><b>Mapa:</b> táhni jinde. <b>Zoom:</b> dva prsty.</p><button type="button" class="btn small" id="hintOk">Rozumím</button></div>
+          <div class="hint" id="aimHint" hidden role="note"><p><b>Míření:</b> táhni od tanku. <b>Mapa:</b> táhni jinde. <b>Zoom:</b> dva prsty.<br><span class="hint-gift"><b>Dárek:</b> po každém výstřelu vybereš soupeři zbraň, kterou musí vystřelit příště.</span></p><button type="button" class="btn small" id="hintOk">Rozumím</button></div>
           <div class="netflag" id="netPill" hidden>Spojení vázne…</div>
           <div class="waitflag" id="waitPill" hidden></div>
-          <button type="button" class="btn small skip" id="skipReplay" hidden><svg class="ic"><use href="#i-skip"/></svg>Přeskočit</button>
+          <div class="oppabil" id="oppAbil" aria-hidden="true"></div>
           <div class="bubble" id="bubble" hidden></div>
           <div class="banner" id="banner" hidden><b></b><span></span></div>
         </div>
       </div>
 
       <section class="ctrl" id="ctrl" aria-label="Ovládání">
+        <i class="grab" aria-hidden="true"></i>
         <button type="button" class="wbtn c-weapon" id="weaponBtn" aria-haspopup="listbox" aria-expanded="false">
-          <span class="wico"><svg class="ic"><use href="#i-bomb"/></svg></span><span class="wtxt"><b class="wname">Granát</b><small class="wammo">bez omezení</small></span><svg class="ic caret"><use href="#i-caret"/></svg>
+          <span class="wico"><svg class="ic"><use href="#i-bomb"/></svg><svg class="ic bow"><use href="#i-gift"/></svg></span><span class="wtxt"><b class="wname">Granát</b><small class="wammo">bez omezení</small></span><svg class="ic caret"><use href="#i-caret"/></svg>
         </button>
-        <button type="button" class="fire c-fire" id="fireBtn">Pal!</button>
+        <div class="gift-forced" id="giftForced" hidden>
+          <button type="button" class="giveback" id="giftBackBtn" aria-pressed="false"><span class="gcoin" id="gbN">1</span><span class="gtx"><b>Vrátit</b><small>dárek</small></span></button>
+        </div>
+
+        <div class="c-gift" id="giftRow" hidden role="radiogroup" aria-labelledby="giftTitle">
+          <div class="gift-title" id="giftTitle"><svg class="ic"><use href="#i-gift"/></svg><span>Dárek pro <b id="giftTo"></b></span></div>
+          <div class="gift-opts" id="giftOpts"></div>
+        </div>
+
+        <div class="c-abil" id="abilRow" role="group" aria-label="Schopnosti"></div>
+        <div class="abiltip" id="abilTip" hidden role="status"></div>
+
+        <div class="c-move" id="moveCtl">
+          <button type="button" class="mv" id="moveL" aria-label="Popojet doleva"><svg class="ic"><use href="#i-left"/></svg></button>
+          <button type="button" class="mv" id="moveR" aria-label="Popojet doprava"><svg class="ic"><use href="#i-right"/></svg></button>
+          <div class="fuel" id="fuelBox"><span id="fuelTxt">palivo</span><b class="ftrack"><i id="fuelBar"></i></b></div>
+        </div>
 
         <div class="stepper c-angle" id="angleCtl">
           <button type="button" id="angleDown" aria-label="Úhel menší"><svg class="ic"><use href="#i-minus"/></svg></button>
@@ -314,19 +288,7 @@
           <div class="val"><small>síla</small><b id="powerVal">60</b></div>
           <button type="button" id="powerUp" aria-label="Síla větší"><svg class="ic"><use href="#i-plus"/></svg></button>
         </div>
-
-        <div class="c-move" id="moveCtl">
-          <button type="button" class="mv" id="moveL" aria-label="Popojet doleva"><svg class="ic"><use href="#i-left"/></svg></button>
-          <div class="fuel" id="fuelBox"><i id="fuelBar"></i><span id="fuelTxt">palivo</span></div>
-          <button type="button" class="mv" id="moveR" aria-label="Popojet doprava"><svg class="ic"><use href="#i-right"/></svg></button>
-        </div>
-
-        <div class="c-abil" id="abilRow" role="group" aria-label="Schopnosti"></div>
-
-        <div class="c-note" id="noteRow">
-          <input id="noteInput" maxlength="40" placeholder="Vzkaz soupeři" autocomplete="off" aria-label="Vzkaz k tahu">
-          <button type="button" class="btn small" id="shopBtn" hidden><svg class="ic"><use href="#i-cart"/></svg>Obchod</button>
-        </div>
+        <button type="button" class="fire c-fire" id="fireBtn">Pal!</button>
 
         <div class="claimbar" id="claimBar" hidden>
           <span id="claimTxt">Přihlížíš.</span>
@@ -345,25 +307,19 @@
   <!-- ============ END ============ -->
   <section class="screen" id="v-end" data-screen="end">
     <div class="scroll">
-      <div class="setup-wrap narrow center">
-        <svg class="art-rosette" id="endArt" viewBox="0 0 120 130" aria-hidden="true">
-          <defs><filter id="rs" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#10060f" flood-opacity=".45"/></filter></defs>
-          <g filter="url(#rs)">
-            <path d="M34 70 20 122l22-10 10 14 12-46z" fill="var(--wc2,#b8402d)"/>
-            <path d="M86 70 100 122l-22-10-10 14-12-46z" fill="var(--wc2,#b8402d)"/>
-            <circle cx="60" cy="50" r="42" fill="var(--wc2,#b8402d)"/>
-            <circle cx="60" cy="50" r="34" fill="var(--wc,#e8543c)"/>
-            <path d="M60 24l7.6 15.6 17 2.4-12.4 12 3 17-15.2-8-15.2 8 3-17-12.4-12 17-2.4z" fill="#fff6e4"/>
-          </g>
-        </svg>
-        <h1 class="h1" id="endTitle">Konec zápasu</h1>
-        <p class="lead" id="endSub"></p>
-        <div class="score" id="endScore" aria-label="Skóre"></div>
-        <p class="stakeline" id="endStake" hidden></p>
-        <div class="actions">
-          <button type="button" class="btn primary big" id="rematchBtn">Odveta!</button>
-          <button type="button" class="btn big" id="copyEndBtn"><svg class="ic"><use href="#i-link"/></svg>Zkopírovat odkaz</button>
-          <button type="button" class="linkbtn" id="menuBtn">Do menu</button>
+      <div class="setup-wrap narrow center end-wrap">
+        <div class="end-art" id="endArt" aria-hidden="true"><canvas class="sprite" data-sprite="end" width="360" height="230"></canvas></div>
+        <div class="end-body">
+          <h1 class="h1" id="endTitle">Konec zápasu</h1>
+          <p class="lead" id="endSub" hidden></p>
+          <div class="score" id="endScore" aria-label="Skóre"></div>
+          <p class="stakeline" id="endStake" hidden></p>
+          <p class="unlock" id="endUnlock" hidden></p>
+          <div class="actions">
+            <button type="button" class="btn primary big" id="rematchBtn">Odveta!</button>
+            <button type="button" class="btn big" id="copyEndBtn"><svg class="ic"><use href="#i-link"/></svg>Zkopírovat odkaz</button>
+            <button type="button" class="linkbtn" id="menuBtn">Do menu</button>
+          </div>
         </div>
       </div>
     </div>
@@ -386,7 +342,8 @@
   </div>
 
 </div>
-<span class="toast" id="toast" role="status" aria-live="polite" hidden></span>
+<div class="roundintro" id="roundIntro" hidden role="status" aria-live="polite"><div class="ri-kolo"></div><div class="ri-map"></div><div class="ri-mod"><svg class="ic" aria-hidden="true"><use href="#i-m-vichr"/></svg><span></span></div></div>
+  <span class="toast" id="toast" role="status" aria-live="polite" hidden></span>
 
 <script>/*@include engine.js*/</script>
 <script>/*@include net.js*/</script>

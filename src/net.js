@@ -54,8 +54,9 @@
   const isHidden = () => !!(root.document && root.document.hidden);
   function interval() {
     const idle = Date.now() - lastChange;
-    const ms = idle < 5 * 60e3 ? 3000 : idle < 30 * 60e3 ? 10000 : 30000;
-    return fails ? Math.min(60000, ms * 2 ** Math.min(fails, 4)) : ms;
+    // 1 s right after a move (the other side is usually watching), then 3 s / 10 s / 30 s
+    const ms = idle < 90e3 ? 1000 : idle < 5 * 60e3 ? 3000 : idle < 30 * 60e3 ? 10000 : 30000;
+    return fails ? Math.min(60000, Math.max(ms, 3000) * 2 ** Math.min(fails, 4)) : ms;
   }
   function schedule(ms) { clearTimeout(pollT); pollT = setTimeout(() => poll(false), ms); }
   function setNet(state) {

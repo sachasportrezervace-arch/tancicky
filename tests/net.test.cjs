@@ -161,7 +161,7 @@ function makeDevice(server, name) {
   D.Net.watch(wid, d => { got.push(d.v); known = d.v; }, () => known);
   check("watch: první poll naplánován na 3 s", D.timers.length === 1 && D.timers[0].ms === 3000);
   await D.fire();
-  check("watch: bez novinky onDoc nevolá", got.length === 0 && D.timers.length === 1 && D.timers[0].ms === 3000);
+  check("watch: bez novinky onDoc nevolá, do 90 s po změně poll po 1 s", got.length === 0 && D.timers.length === 1 && D.timers[0].ms === 1000);
   await NA.commit(wid, 1, () => true, { ...g0, t: [{ weapon: "grenade", vx: 1, vy: 1 }] });
   await D.fire();
   check("watch: novější v → onDoc přesně jednou", got.length === 1 && got[0] === 2);
@@ -178,7 +178,7 @@ function makeDevice(server, name) {
   check("watch: po 30 min klidu interval 30 s", D.timers[0].ms === 30000, String(D.timers[0].ms));
   await NA.commit(wid, 2, () => true, { ...g0, t: [{ weapon: "grenade", vx: 1, vy: 1 }, { weapon: "triple", vx: 2, vy: 2 }] });
   await D.fire();
-  check("watch: nový tah po klidu → onDoc a zpět na 3 s", got.length === 2 && got[1] === 3 && D.timers[0].ms === 3000, String(D.timers[0].ms));
+  check("watch: nový tah po klidu → onDoc a zpět na 1 s", got.length === 2 && got[1] === 3 && D.timers[0].ms === 1000, String(D.timers[0].ms));
 
   // poke / wake
   await NA.commit(wid, 3, () => true, { ...g0, t: [1, 2, 3].map(() => ({ weapon: "grenade", vx: 1, vy: 1 })) });

@@ -16,7 +16,7 @@
 
   if (!E || !TR) { document.body.dataset.view = "info"; $("infoTitle").textContent = "Hra se nenačetla."; $("infoMeta").textContent = "Chybí část kódu. Zkus stránku obnovit."; return; }
 
-  var WEAPON_ICON = { grenade: "bomb", triple: "triple", mirv: "mirv", roller: "roller", drill: "drill", napalm: "napalm", dirt: "dirt", bouncer: "bouncer", spray: "spray", nuke: "nuke", leaper: "leaper" };
+  var WEAPON_ICON = { grenade: "bomb", triple: "triple", mirv: "mirv", roller: "roller", drill: "drill", napalm: "napalm", dirt: "dirt", bouncer: "bouncer", spray: "spray", nuke: "nuke", leaper: "leaper", pirko: "pirko", konfety: "konfety" };
   var wIcon = function (id) { return WEAPON_ICON[id] || "bomb"; };
   var TARGETED = { teleport: true, airstrike: true };
   var STAKES = {
@@ -36,14 +36,14 @@
 
   /* ---------------- stav ---------------- */
   var S = { mode: null, id: null, v: -1, g: null, doc: null, s0: "", s1: "", seat: null, free: null, shown: null, state: null, turn: null, pumping: false, pumpP: Promise.resolve(), committing: false, fast: false, animDone: null, corrupt: false, localKey: 0 };
-  var C = { angle: 55, power: 60, weapon: "grenade", move: 0, ability: null, ax: null, cart: [], mem: [{ angle: 55, power: 60 }, { angle: 125, power: 60 }], wmem: ["grenade", "grenade"], key: "", shopDone: "", previewDirty: true, preview: null };
+  var C = { angle: 55, power: 60, weapon: "grenade", move: 0, ability: null, ax: null, cart: [], mem: [{ angle: 55, power: 60 }, { angle: 125, power: 60 }], wmem: ["grenade", "grenade"], key: "", shopDone: "", previewDirty: true, preview: null, gift: null, giftBack: false, giftOpts: [] };
   var view = "setup";
   var R = null; // renderer
   var bubble = { idx: -1, text: "", until: 0 };
   var Snd = window.TankSound || null;
   var sfx = function (n, a) { if (Snd) Snd.play(n, a); };
   var buzz = function (p) { if (Snd) Snd.buzz(p); };
-  var cc = { manual: false, has: false, fx: 0, fy: 0, impactUntil: 0, ix: 0, iy: 0 }; // kamera: rucni rezim, sledovani strely, dojezd na dopad
+  var cc = { manual: false, has: false, fx: 0, fy: 0, impactUntil: 0, ix: 0, iy: 0, quietUntil: 0, z: 0 }; // kamera: rucni rezim, sledovani strely, dojezd na dopad
   var touchy = attempt(function () { return matchMedia("(pointer: coarse)").matches; }, false);
 
   var names = function () { return (S.g && S.g.n) || ["Hráč 1", "Hráč 2"]; };
@@ -84,18 +84,33 @@
 
   function layout() {
     var wrap = $("stageWrap"), st = $("stage"); if (!wrap || view !== "play") return;
-    var r = wrap.getBoundingClientRect(); if (r.width < 10 || r.height < 10) return;
-    var w = Math.min(r.width, r.height * 1.9), h = r.height; // sirsi nez 1.9:1 by ukazalo okraj sveta
-    if (r.width > 560) h = Math.min(h, w / 1.5); // na siroke obrazovce nechceme pul plochy prazdneho nebe
-    st.style.width = Math.floor(w) + "px"; st.style.height = Math.floor(h) + "px";
+    var r = wrap.getBoundingClientRect(); if (r.width < 10 || r.height < 10 || !st) return;
     if (R && R.resize()) camRefresh();
   }
 
   /* ---------------- HUD ---------------- */
   var hudSig = "";
+  /* ---- kolo: mapa, modifikátor, vztek, kosmetika série ---- */
+  var MOD_SHORT = { vichr: "vítr dvakrát silnější", mesic: "gravitace slabší", tezko: "gravitace větší", zrcadlo: "vítr mění směr", bohaci: "+40 mincí pro oba", kratery: "větší výbuchy" };
+  function modOf(id) { var l = E.MODS || []; for (var i = 0; i < l.length; i++) if (l[i].id === id) return l[i]; return null; }
+  function mapOf(id) { var l = E.MAPS || []; for (var i = 0; i < l.length; i++) if (l[i].id === id) return l[i]; return null; }
+  function tierOf(w) { return w >= 5 ? 3 : w >= 3 ? 2 : w >= 1 ? 1 : 0; }
+  function titleOf(w) { return w >= 12 ? "Maršál" : w >= 8 ? "Generál" : w >= 5 ? "Kapitán" : ""; }
+  var TIER_ITEM = [["", ""], ["brýle", "mašli"], ["korunku", "korunku"], ["zlatý lem", "zlatý lem"]];
+  var introKey = "", introT = 0;
+  function hideIntro() { var el = $("roundIntro"); if (!el.hidden) { el.hidden = true; clearTimeout(introT); } }
+  document.addEventListener("pointerdown", hideIntro, true); document.addEventListener("keydown", hideIntro, true);
+  function showIntro(st) {
+    var el = $("roundIntro"), md = st.mod && st.mod !== "normal" ? modOf(st.mod) : null, mp = mapOf(st.map);
+    el.querySelector(".ri-kolo").textContent = "Kolo " + st.round; el.querySelector(".ri-map").textContent = mp ? mp.name : "";
+    var rm = el.querySelector(".ri-mod"); rm.hidden = !md;
+    if (md) { rm.querySelector("use").setAttribute("href", "#i-m-" + st.mod); rm.querySelector("span").textContent = md.name + ": " + (MOD_SHORT[st.mod] || md.desc); }
+    el.hidden = false; el.style.animation = "none"; void el.offsetWidth; el.style.animation = "";
+    clearTimeout(introT); introT = setTimeout(hideIntro, 1500);
+  }
   function updateHud(st) {
     if (!st) return;
-    var sig = JSON.stringify([st.tanks.map(function (t) { return [t.hp, t.maxHp, t.coins, t.shield, t.alive]; }), st.wins, st.round, st.wind, st.cur, st.matchOver, S.g && S.g.n, S.g && S.g.gi, S.g && S.g.w, !!S.turn]);
+    var sig = JSON.stringify([st.tanks.map(function (t) { return [t.hp, t.maxHp, t.coins, t.shield, t.alive, t.rage]; }), st.mod, st.map, st.wins, st.round, st.wind, st.cur, st.matchOver, S.g && S.g.n, S.g && S.g.gi, S.g && S.g.w, !!S.turn]);
     if (sig === hudSig) return; hudSig = sig;
     var need = (E.RULES && E.RULES.winRounds) || 2;
     for (var i = 0; i < 2; i++) {
@@ -106,16 +121,22 @@
       card.querySelector(".hptxt").textContent = Math.max(0, t.hp);
       card.querySelector(".coins b").textContent = t.coins;
       var sh = card.querySelector(".shieldtag"); sh.hidden = !(t.shield > 0);
+      var rg = card.querySelector(".ragetag"); rg.hidden = !(t.rage && t.alive && !st.matchOver); rg.textContent = "Vztek +" + (((E.RULES && E.RULES.ragePct) || 125) - 100) + " %";
       var pips = card.querySelector(".pips"); var html = "";
       for (var k = 0; k < need; k++) html += '<svg class="pip' + (k < st.wins[i] ? " on" : "") + '" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-star"/></svg>';
       pips.innerHTML = html;
       card.classList.toggle("active", st.cur === i && !st.matchOver);
       card.classList.toggle("dead", !t.alive);
     }
-    $("roundTxt").textContent = "Kolo " + st.round;
+    $("roundTxt").innerHTML = "<small>kolo</small>" + st.round; $("stage").style.setProperty("--pc", "var(--p" + (st.cur ? 1 : 0) + ")");
+    var mdc = st.mod && st.mod !== "normal" ? modOf(st.mod) : null, chip = $("modChip");
+    chip.hidden = !mdc; if (mdc) { chip.querySelector("use").setAttribute("href", "#i-m-" + st.mod); chip.querySelector("span").textContent = mdc.name; chip.title = mdc.name + ": " + mdc.desc; }
+    if (R && R.setCosmetics && S.g) R.setCosmetics([tierOf((S.g.w || [0, 0])[0]), tierOf((S.g.w || [0, 0])[1])]);
+    var ikey = (S.id || "l") + ":" + (S.g && S.g.gi) + ":" + st.round;
+    if (view === "play" && st.roundTurn === 0 && !st.matchOver && introKey !== ikey) { introKey = ikey; showIntro(st); }
     var wd = st.wind || 0, aw = Math.abs(wd), box = $("windBox");
     box.dataset.dir = wd < 0 ? "-1" : "1"; box.dataset.n = aw === 0 ? "0" : String(Math.min(4, Math.ceil(aw / 4)));
-    $("windTxt").textContent = aw; box.title = aw === 0 ? "Bezvětří" : "Vítr " + aw + (wd < 0 ? " doleva" : " doprava");
+    $("windTxt").textContent = aw; box.style.setProperty("--wf", String(Math.min(1, aw / 15))); box.title = aw === 0 ? "Bezvětří" : "Vítr " + aw + (wd < 0 ? " doleva" : " doprava");
     var g = S.g, ser = "";
     if (g && (g.gi > 1 || (g.w && (g.w[0] || g.w[1])))) ser = "odveta " + (g.gi - 1) + " · série " + g.w[0] + ":" + g.w[1];
     $("seriesTxt").textContent = ser;
@@ -123,7 +144,7 @@
 
   /* ---------------- obchod: stejné počty jako engine ---------------- */
   function simTank(t, cart) {
-    var sim = { coins: t.coins, up: Object.assign({}, t.up), ammo: Object.assign({}, t.ammo), ch: Object.assign({}, t.ch || {}) };
+    var sim = { coins: t.coins, up: Object.assign({}, t.up), ammo: Object.assign({}, t.ammo), ch: Object.assign({}, t.ch || {}), gb: t.gb | 0, gbx: t.gbx | 0 };
     var why = null;
     for (var i = 0; i < cart.length && !why; i++) why = applyBuyUI(sim, cart[i]);
     return { sim: sim, why: why };
@@ -132,6 +153,7 @@
     var p = item.indexOf(":"), kind = item.slice(0, p), id = item.slice(p + 1), cap = 4 + 2 * (t.up.slots | 0), i, o;
     if (kind === "up") { o = E.UPGRADES.filter(function (u) { return u.id === id; })[0]; if (!o) return "Neznámý upgrade."; var lv = t.up[id] | 0; if (lv >= o.max) return "Už je na maximu."; if (t.coins < o.prices[lv]) return "Nemáš dost mincí."; t.coins -= o.prices[lv]; t.up[id] = lv + 1; return null; }
     if (kind === "w") { o = E.WEAPONS.filter(function (w) { return w.id === id; })[0]; if (!o || o.unlimited) return "Tohle koupit nejde."; if (t.coins < o.price) return "Nemáš dost mincí."; if ((t.ammo[id] | 0) + o.pack > cap) return "Sklad je plný."; t.coins -= o.price; t.ammo[id] = (t.ammo[id] | 0) + o.pack; return null; }
+    if (kind === "a" && id === "giftback") { var gp = (E.RULES && E.RULES.giftBackPrice) || 0; if (t.coins < gp) return "Nemáš dost mincí."; if ((t.gbx | 0) >= 1) return "Žeton navíc už máš."; t.coins -= gp; t.gbx = 1; t.gb = (t.gb | 0) + 1; return null; }
     if (kind === "a") { o = E.ABILITIES.filter(function (a) { return a.id === id; })[0]; if (!o) return "Neznámá schopnost."; if (t.coins < o.price) return "Nemáš dost mincí."; if ((t.ch[id] | 0) >= 3) return "Víc nabití se nevejde."; t.coins -= o.price; t.ch[id] = (t.ch[id] | 0) + 1; return null; }
     void i; return "Neznámá položka.";
   }
@@ -147,25 +169,30 @@
     E.UPGRADES.forEach(function (u) {
       var lv = t.up[u.id] | 0, nl = sim.up[u.id] | 0, maxed = nl >= u.max, price = maxed ? 0 : u.prices[nl], dis = maxed || sim.coins < price;
       var pips = ""; for (var i = 0; i < u.max; i++) pips += '<i class="' + (i < lv ? "on" : i < nl ? "new" : "") + '"></i>';
-      html += '<button type="button" class="srow" data-buy="up:' + u.id + '"' + (dis ? " disabled" : "") + '><span class="medal rose">' + icon(u.id) + '</span><span><span class="nm">' + esc(u.name) + ' <span class="lvl">' + pips + '</span></span><span class="ds">' + esc(u.desc) + '</span></span>' + priceChip(maxed ? null : price) + "</button>";
+      html += '<button type="button" class="srow" data-buy="up:' + u.id + '"' + (dis ? " disabled" : "") + '><span class="medal rose">' + icon(u.id) + '</span><span><span class="nm">' + esc(u.name) + ' <span class="lvl">' + pips + '</span></span><span class="ds">' + esc(nb(u.desc)) + '</span></span>' + priceChip(maxed ? null : price) + "</button>";
     });
     html += "<h3>Zbraně</h3>";
     E.WEAPONS.forEach(function (w) {
       if (w.unlimited) return;
       var have = sim.ammo[w.id] | 0, full = have + w.pack > cap, dis = full || sim.coins < w.price, n = cnt("w:" + w.id);
-      html += '<button type="button" class="srow" data-buy="w:' + w.id + '"' + (dis ? " disabled" : "") + '>' + (n ? '<span class="in">+' + n * w.pack + "</span>" : "") + '<span class="medal">' + icon(wIcon(w.id)) + '</span><span><span class="nm">' + esc(w.name) + '</span><span class="ds">' + esc(w.desc) + " Balíček " + w.pack + " ks, ve skladu " + have + " z " + cap + ".</span></span>" + priceChip(w.price) + "</button>";
+      html += '<button type="button" class="srow" data-buy="w:' + w.id + '"' + (dis ? " disabled" : "") + '>' + (n ? '<span class="in">+' + n * w.pack + "</span>" : "") + '<span class="medal">' + icon(wIcon(w.id)) + '</span><span><span class="nm">' + esc(w.name) + '</span><span class="ds">' + esc(nb(w.desc + " Balíček " + w.pack + " ks, ve skladu " + have + " z " + cap + ".")) + "</span></span>" + priceChip(w.price) + "</button>";
     });
     html += "<h3>Schopnosti</h3>";
     E.ABILITIES.forEach(function (a) {
       var ch = sim.ch[a.id] | 0, dis = ch >= 3 || sim.coins < a.price, n = cnt("a:" + a.id);
-      html += '<button type="button" class="srow" data-buy="a:' + a.id + '"' + (dis ? " disabled" : "") + '>' + (n ? '<span class="in">+' + n + "</span>" : "") + '<span class="medal teal">' + icon(a.id) + '</span><span><span class="nm">' + esc(a.name) + '</span><span class="ds">' + esc(a.desc) + " Koupíš nabití: příště se nespustí čekání." + (ch ? " Máš " + ch + "×." : "") + "</span></span>" + priceChip(a.price) + "</button>";
+      html += '<button type="button" class="srow" data-buy="a:' + a.id + '"' + (dis ? " disabled" : "") + '>' + (n ? '<span class="in">+' + n + "</span>" : "") + '<span class="medal teal">' + icon(a.id) + '</span><span><span class="nm">' + esc(a.name) + '</span><span class="ds">' + esc(nb(a.desc + " Koupíš nabití: příště se nespustí čekání." + (ch ? " Máš " + ch + "×." : ""))) + "</span></span>" + priceChip(a.price) + "</button>";
+    });
+    (E.EXTRAS || []).forEach(function (x) {
+      var dis = (sim.gbx | 0) >= 1 || sim.coins < x.price, n = cnt(x.id);
+      html += '<button type="button" class="srow" data-buy="' + x.id + '"' + (dis ? " disabled" : "") + '>' + (n ? '<span class="in">+1</span>' : "") + '<span class="medal teal">' + icon("gift") + '</span><span><span class="nm">' + esc(x.name) + '</span><span class="ds">' + esc(nb(x.desc)) + "</span></span>" + priceChip((sim.gbx | 0) >= 1 ? null : x.price) + "</button>";
     });
     $("shopBody").innerHTML = html;
     $("shopUndo").hidden = !C.cart.length;
     $("shopCart").textContent = C.cart.length ? "V košíku: " + C.cart.length + (C.cart.length === 1 ? " věc" : C.cart.length < 5 ? " věci" : " věcí") : "Nic v košíku. Můžeš i nenakupovat.";
   }
+  function nb(s) { return String(s).replace(/(^|s)([A-Za-zÀ-ž0-9]{1,2}) /g, "$1$2 ").replace(/ ([^ ]+)$/, " $1"); } // pevné mezery: žádná sirotčí slova na konci řádku
   function priceChip(p) { return p == null ? '<span class="price max">Max</span>' : '<span class="price">' + icon("coin") + p + "</span>"; }
-  function openShop() { if (!S.state || !curTank()) return; renderShop(); $("shop").hidden = false; var b = $("shopBody"); b.scrollTop = 0; }
+  function openShop() { if (!S.state || !curTank()) return; $("a2hs").hidden = true; renderShop(); $("shop").hidden = false; var b = $("shopBody"); b.scrollTop = 0; }
   function closeShop() { $("shop").hidden = true; C.shopDone = shopKey(); updateCtrl(); }
   var shopKey = function () { return S.shown ? S.shown.seed + ":" + S.state.turnNo : ""; };
   $("shopBody").addEventListener("click", function (ev) {
@@ -181,15 +208,17 @@
   /* ---------------- ovládání: úhel, síla, zbraň, pohyb, schopnosti ---------------- */
   function weaponAmmo(id) { var w = E.WEAPONS.filter(function (x) { return x.id === id; })[0], sim = effTank(); if (!w || !sim) return 0; return w.unlimited ? Infinity : (sim.ammo[id] | 0); }
   function availableWeapons() { var sim = effTank(); return E.WEAPONS.filter(function (w) { return w.unlimited || (sim && (sim.ammo[w.id] | 0) > 0); }); }
-  function fixWeapon() { var ok = availableWeapons(); if (!ok.some(function (w) { return w.id === C.weapon; })) C.weapon = ok.length ? ok[0].id : "grenade"; }
+  function weaponDef(id) { return (E.weaponInfo && E.weaponInfo(id)) || E.WEAPONS.filter(function (w) { return w.id === id; })[0] || null; }
+  function forcedWeapon() { var t = curTank(); return t && t.gift && !C.giftBack ? t.gift : null; }
+  function fixWeapon() { var fw = forcedWeapon(); if (fw) { C.weapon = fw; return; } var ok = availableWeapons(); if (!ok.some(function (w) { return w.id === C.weapon; })) C.weapon = ok.length ? ok[0].id : "grenade"; }
   var lastTick = 0;
   function setAim(angle, power) {
     var oa = C.angle, op = C.power;
-    C.angle = clamp(Math.round(angle), 0, 180); C.power = clamp(Math.round(power), 0, 100);
+    C.angle = clamp(Math.round(angle), 0, 180); C.power = clamp(Math.round(power * 2) / 2, 0, 100);
     C.mem[cur()] = { angle: C.angle, power: C.power }; C.previewDirty = true; syncAim();
     if ((oa !== C.angle || op !== C.power) && performance.now() - lastTick > 55) { lastTick = performance.now(); sfx("tick"); }
   }
-  function syncAim() { $("angleVal").textContent = C.angle + "°"; $("powerVal").textContent = C.power; }
+  function syncAim() { var p = Math.round(C.power * 2) / 2; $("angleVal").textContent = C.angle + "°"; $("powerVal").textContent = p % 1 ? String(p).replace(".", ",") : p; }
   function reach(want) {
     var st = S.state, t = curTank(), o = st.tanks[1 - st.cur], dir = Math.sign(want), x = t.x, y = t.y, n = 0, lim = Math.min(Math.abs(want), t.fuel);
     for (var i = 0; i < lim; i++) {
@@ -217,10 +246,11 @@
     if (!canAct()) return;
     if (C.ability === id) { C.ability = null; C.ax = null; C.previewDirty = true; updateCtrl(); return; }
     var st = S.state, t = curTank(), o = st.tanks[1 - st.cur];
+    if (id === "airstrike" && forcedWeapon()) { toast("Dárek musíš vystřelit, nálet nejde."); return; }
     if ((t.cd[id] | 0) > 0) { toast("Ještě se nabíjí."); return; }
     C.ability = id;
     if (TARGETED[id]) {
-      if (id === "airstrike") C.ax = o.x; else { var dir = o.x >= t.x ? 1 : -1; C.ax = clamp(t.x + dir * 110, 14, W - 15); if (Math.abs(C.ax - o.x) < 30) C.ax = clamp(t.x - dir * 110, 14, W - 15); C.move = 0; }
+      if (id === "airstrike") C.ax = null; else { var dir = o.x >= t.x ? 1 : -1; C.ax = clamp(t.x + dir * 110, 14, W - 15); if (Math.abs(C.ax - o.x) < 30) C.ax = clamp(t.x - dir * 110, 14, W - 15); C.move = 0; }
       toast(id === "airstrike" ? "Klepni na bojiště: kam padne nálet?" : "Klepni na bojiště: kam se přeneseš?");
     } else C.ax = null;
     C.previewDirty = true; updateCtrl();
@@ -230,6 +260,9 @@
     var inp = { weapon: C.weapon, vx: v.vx, vy: v.vy, move: C.move | 0, ability: C.ability || null, note: ($("noteInput").value || "").trim().slice(0, 40), at: Date.now() };
     if (C.ability && TARGETED[C.ability]) inp.ax = Math.round(C.ax == null ? t.x : C.ax);
     if (t.shop && C.cart.length) inp.buy = C.cart.slice();
+    if (C.giftOpts.indexOf(C.gift) < 0) C.gift = C.giftOpts[0] || null;
+    if (C.gift) inp.gift = C.gift;
+    if (C.giftBack && t.gift) inp.giftBack = true;
     return inp;
   }
 
@@ -246,12 +279,25 @@
   }
   hold($("angleDown"), function (n) { if (canAct()) setAim(C.angle - n, C.power); });
   hold($("angleUp"), function (n) { if (canAct()) setAim(C.angle + n, C.power); });
-  hold($("powerDown"), function (n) { if (canAct()) setAim(C.angle, C.power - n); });
-  hold($("powerUp"), function (n) { if (canAct()) setAim(C.angle, C.power + n); });
+  hold($("powerDown"), function (n) { if (canAct()) setAim(C.angle, C.power - n * 0.5); });
+  hold($("powerUp"), function (n) { if (canAct()) setAim(C.angle, C.power + n * 0.5); });
   hold($("moveL"), function (n, first) { stepMove(-(first ? 6 : 3 * n)); });
   hold($("moveR"), function (n, first) { stepMove(first ? 6 : 3 * n); });
 
-  $("abilRow").addEventListener("click", function (ev) { var b = ev.target.closest("[data-a]"); if (b && !b.disabled) selectAbility(b.getAttribute("data-a")); });
+  var abilTipT = 0, abilLong = false, abilTipHide = 0, abilTip = $("abilTip");
+  function showAbilTip(b) {
+    var t = b.getAttribute("title") || "", i = t.indexOf(": ");
+    abilTip.innerHTML = "<b>" + esc(i > 0 ? t.slice(0, i) : t) + "</b>" + (i > 0 ? "<span>" + esc(t.slice(i + 2)) + "</span>" : "");
+    abilTip.hidden = false; var r = b.getBoundingClientRect(), w = abilTip.offsetWidth, h = abilTip.offsetHeight;
+    abilTip.style.left = clamp(r.left + r.width / 2 - w / 2, 8, window.innerWidth - w - 8) + "px"; abilTip.style.top = Math.max(8, r.top - h - 10) + "px";
+    clearTimeout(abilTipHide); abilTipHide = setTimeout(function () { abilTip.hidden = true; }, 2600);
+  }
+  $("abilRow").addEventListener("pointerdown", function (ev) {
+    var b = ev.target.closest("[data-a]"); abilLong = false; clearTimeout(abilTipT); if (!b || ev.pointerType === "mouse") return;
+    abilTipT = setTimeout(function () { abilLong = true; showAbilTip(b); }, 420);
+  });
+  ["pointerup", "pointercancel", "pointerleave"].forEach(function (n) { $("abilRow").addEventListener(n, function () { clearTimeout(abilTipT); }); });
+  $("abilRow").addEventListener("click", function (ev) { if (abilLong) { abilLong = false; ev.preventDefault(); return; } var b = ev.target.closest("[data-a]"); if (b && !b.disabled) selectAbility(b.getAttribute("data-a")); });
 
   // zbraně
   function openWeapons() {
@@ -264,7 +310,17 @@
     var sel = $("weaponList").querySelector(".sel"); if (sel) sel.focus({ preventScroll: false });
   }
   function closeWeapons() { $("weaponSheet").hidden = true; $("weaponBtn").setAttribute("aria-expanded", "false"); }
-  $("weaponBtn").addEventListener("click", function () { if ($("weaponSheet").hidden) openWeapons(); else closeWeapons(); });
+  $("weaponBtn").addEventListener("click", function () {
+    if (forcedWeapon()) { toast("Tohle je dárek od " + nameOf(1 - cur()) + ". Vrátit ho můžeš tlačítkem Vrátit dárek."); return; }
+    if ($("weaponSheet").hidden) openWeapons(); else closeWeapons();
+  });
+  $("giftOpts").addEventListener("click", function (ev) { var b = ev.target.closest("[data-g]"); if (!b || !canAct()) return; C.gift = b.getAttribute("data-g"); sfx("click"); updateCtrl(); });
+  $("giftBackBtn").addEventListener("click", function () {
+    if (!canAct()) return; var t = curTank(), sim = effTank();
+    if (!t.gift) return;
+    if (!C.giftBack && (sim.gb | 0) < 1) { toast("Žeton na vrácení dárku už nemáš."); return; }
+    C.giftBack = !C.giftBack; C.previewDirty = true; fixWeapon(); updateCtrl();
+  });
   $("weaponBg").addEventListener("click", closeWeapons);
   $("weaponList").addEventListener("click", function (ev) { var b = ev.target.closest("[data-w]"); if (!b) return; C.weapon = b.getAttribute("data-w"); C.wmem[cur()] = C.weapon; C.previewDirty = true; closeWeapons(); updateCtrl(); });
 
@@ -280,6 +336,10 @@
   }
   function gDown(id, cx, cy, btn) {
     if (!R) return;
+    if (!ptrs.size && R.edgeAt && S.state) {
+      var ei = R.edgeAt(cx, cy);
+      if (ei === 0 || ei === 1) { var et = (S.turn ? S.turn.state : S.state).tanks[ei], cm0 = R.camera(); if (et) { R.setView(et.x, et.y - 60, cm0.tz, { rate: 9 }); cc.manual = true; } return; }
+    }
     ptrs.set(id, { x: cx, y: cy });
     if (ptrs.size >= 2) { startPinch(); return; }
     var w = R.toWorld(cx, cy), act = canAct(), pn = R.pannable(), p = act ? pivotWorld() : null;
@@ -301,7 +361,7 @@
       if (!g.moved && Math.hypot(cx - g.sx, cy - g.sy) < 7) return; g.moved = true; hideHint(true);
       var w = R.toWorld(cx, cy), dx = w.x - g.ax, dy = w.y - g.ay, len = Math.hypot(dx, dy); if (len < 6) return;
       var ang = Math.atan2(-dy, dx) * 180 / Math.PI; if (ang < 0) ang = dx >= 0 ? 0 : 180;
-      setAim(ang, len / 2.6);
+      setAim(ang, len / 3.9);
     } else if (g.type === "pan") {
       if (g.id !== id) return;
       if (!g.moved && Math.hypot(cx - g.sx, cy - g.sy) < 6) return;
@@ -342,11 +402,27 @@
   cv.addEventListener("contextmenu", function (e) { e.preventDefault(); });
 
   // kamera
+  // vychozi zaber: telefon drzi tank velky a soupere ukazuje minimapa a znacka; vetsi obrazovka ukaze oba tanky s okrajem
+  function frameFor(st) {
+    var lim = R.limits(), t = st.tanks[st.cur], o = st.tanks[1 - st.cur], both = o && o.alive !== false && t.alive !== false;
+    if (lim.cw < 640 || !both) {
+      var z0 = R.homeZoom(), zf = z0;
+      if (lim.cw < 640 && canAct()) z0 = Math.min(lim.zMax, z0 * 1.25);
+      var vw = lim.cw / (lim.fit * z0), vh = lim.ch / (lim.fit * z0);
+      var bias = o && o.alive !== false ? Math.sign(o.x - t.x) * Math.min(Math.abs(o.x - t.x) / 2, vw * 0.22) : 0;
+      return { x: t.x + bias, y: t.y - Math.max(40, 0.1 * vh), z: z0, zf: zf };
+    }
+    // desktop: aktivni tank >= 100 px (meritko 2,5), soupere ukaze okrajova bublina; oba tanky jen kdyz se vejdou s okrajem 96 px
+    var zT = Math.min(lim.zMax, 2.5 / lim.fit), scl = lim.fit * zT, vw = lim.cw / scl, vh = lim.ch / scl, sepx = Math.abs(o.x - t.x), pad = 96 / scl;
+    var zf = clamp(1.4 / lim.fit, 1, zT), cy = t.y - Math.max(24, 0.05 * vh);
+    if (sepx + 2 * pad <= vw) return { x: (t.x + o.x) / 2, y: cy, z: zT, zf: zf };
+    var bias = Math.sign(o.x - t.x) * Math.min(sepx / 2, vw * 0.2);
+    return { x: t.x + bias, y: cy, z: zT, zf: zf };
+  }
   function camHome(st, snap) {
     if (!R || !st) return; var t = st.tanks[st.cur], o = st.tanks[1 - st.cur]; if (!t) return;
-    var z = R.homeZoom(), lim = R.limits(), vw = lim.cw / (lim.fit * z);
-    var bias = o && o.alive !== false ? Math.sign(o.x - t.x) * Math.min(Math.abs(o.x - t.x) / 2, vw * 0.22) : 0;
-    R.setView(t.x + bias, t.y - 60, z, { rate: 2.4, snap: !!snap });
+    var f = frameFor(st); cc.z = f.zf || f.z;
+    R.setView(f.x, f.y, f.z, { rate: 2.4, snap: !!snap });
   }
   function camRefresh() { if (R && S.state && !cc.manual && !S.turn) camHome(S.state, true); }
   function camLoop(st) {
@@ -360,7 +436,7 @@
       else if (now < cc.impactUntil) { tx = cc.ix; ty = cc.iy; }
       else if (cc.has) { tx = cc.fx; ty = cc.fy; }
       else { var ct = st.tanks[st.cur]; tx = ct ? ct.x : W / 2; ty = ct ? ct.y : H / 2; }
-      R.setView(tx, ty - 20, R.homeZoom(), { rate: S.fast ? 14 : 4.2 });
+      R.setView(tx, ty - 20, cc.z || R.homeZoom(), { rate: S.fast ? 14 : 4.2 });
     } else if (!cc.manual) camHome(st, false);
   }
   function toggleFit() {
@@ -390,8 +466,8 @@
     var big = e.shiftKey ? 5 : 1;
     if (e.key === "ArrowLeft") { e.preventDefault(); if (canAct()) setAim(C.angle + big, C.power); }
     else if (e.key === "ArrowRight") { e.preventDefault(); if (canAct()) setAim(C.angle - big, C.power); }
-    else if (e.key === "ArrowUp") { e.preventDefault(); if (canAct()) setAim(C.angle, C.power + big); }
-    else if (e.key === "ArrowDown") { e.preventDefault(); if (canAct()) setAim(C.angle, C.power - big); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); if (canAct()) setAim(C.angle, C.power + (e.shiftKey ? 5 : 0.5)); }
+    else if (e.key === "ArrowDown") { e.preventDefault(); if (canAct()) setAim(C.angle, C.power - (e.shiftKey ? 5 : 0.5)); }
     else if (e.key === " " || e.key === "Enter") { e.preventDefault(); fire(); }
   });
 
@@ -406,24 +482,46 @@
     fb.textContent = act ? "Pal!" : (S.turn ? "Střílí se…" : S.committing ? "Odesílám…" : st.matchOver ? "Konec" : "Čekej…");
     if (!t) return;
     if (act) fixWeapon();
-    var wdef = E.WEAPONS.filter(function (w) { return w.id === C.weapon; })[0] || E.WEAPONS[0], sim = effTank() || t;
+    var wdef = weaponDef(C.weapon) || E.WEAPONS[0], sim = effTank() || t, fw = act ? forcedWeapon() : null;
+    if (fw && C.ability === "airstrike") { C.ability = null; C.ax = null; }
     $("weaponBtn").querySelector(".wico").innerHTML = icon(wIcon(wdef.id));
     $("weaponBtn").querySelector(".wname").textContent = wdef.name;
-    $("weaponBtn").querySelector(".wammo").textContent = wdef.unlimited ? "bez omezení" : (sim.ammo[wdef.id] | 0) + " ks";
+    $("weaponBtn").querySelector(".wammo").textContent = fw ? (wdef.troll ? "dárek zdarma" : "dárek · " + (sim.ammo[wdef.id] | 0) + " ks") : wdef.unlimited ? "bez omezení" : (sim.ammo[wdef.id] | 0) + " ks";
+    $("weaponBtn").classList.toggle("forced", !!fw);
+    var gfOn = act && !!t.gift;
+    $("ctrl").classList.toggle("forced", gfOn); $("giftForced").hidden = !gfOn;
+    if (fw) { var gv = 1 - st.cur; $("weaponBtn").style.setProperty("--gc", "var(--p" + gv + "-p)"); $("weaponBtn").style.setProperty("--gcd", "var(--p" + gv + ")"); $("weaponBtn").querySelector(".wammo").textContent = "Dárek od " + nameOf(gv); }
+    if (gfOn) {
+      var gbn = sim.gb | 0, gbb = $("giftBackBtn"); gbb.setAttribute("aria-pressed", C.giftBack ? "true" : "false");
+      $("gbN").textContent = gbn; gbb.querySelector(".gtx b").textContent = C.giftBack ? "Vráceno" : "Vrátit"; gbb.disabled = !C.giftBack && gbn < 1;
+      gbb.title = C.giftBack ? "Dárek vrácen, střílej čím chceš" : "Vrátit dárek: použiješ jakoukoli zbraň (žetony: " + gbn + ")";
+    }
+    var grOn = act && C.giftOpts.length > 0; $("giftRow").hidden = !grOn;
+    if (grOn) {
+      $("giftTo").textContent = nameOf(1 - st.cur); $("giftRow").style.setProperty("--gp", "var(--p" + (1 - st.cur) + ")");
+      var gh = ""; C.giftOpts.forEach(function (id) {
+        var gw = weaponDef(id) || { name: id, desc: "" }, sel = id === C.gift;
+        gh += '<button type="button" role="radio" class="gopt' + (sel ? " sel" : "") + '" data-g="' + id + '" aria-checked="' + sel + '" title="' + esc(gw.name + ": " + (gw.desc || "")) + '">' + icon(wIcon(id)) + '<span class="gnm">' + esc(gw.name) + "</span>" + (sel ? icon("check").replace('class="ic"', 'class="ic chk"') : "") + "</button>";
+      });
+      var go = $("giftOpts"); if (go.dataset.sig !== gh) { go.dataset.sig = gh; go.innerHTML = gh; }
+    }
     syncAim();
     // palivo
     var left = Math.max(0, t.fuel - Math.abs(C.move)), mf = t.maxFuel || 160;
     $("fuelBar").style.width = Math.round(clamp(left / mf, 0, 1) * 100) + "%";
     $("fuelTxt").textContent = C.move ? (C.move > 0 ? "→ " : "← ") + Math.abs(C.move) + " px · zbývá " + left : "palivo " + left;
-    $("moveL").disabled = !act || t.fuel <= 0; $("moveR").disabled = !act || t.fuel <= 0;
+    $("moveCtl").hidden = !act; $("moveL").disabled = !act || t.fuel <= 0; $("moveR").disabled = !act || t.fuel <= 0;
     // schopnosti
     var html = "";
     E.ABILITIES.forEach(function (a) {
       if (!(a.id in (t.cd || {}))) return;
       var cd = t.cd[a.id] | 0, ch = (sim.ch && sim.ch[a.id]) | 0, sel = C.ability === a.id;
-      html += '<button type="button" class="abtn' + (sel ? " sel" : "") + '" data-a="' + a.id + '"' + (cd > 0 ? " disabled" : "") + ' title="' + esc(a.name + ": " + a.desc) + '" aria-pressed="' + sel + '" aria-label="' + esc(a.name) + '">' + icon(a.id) + "<span>" + esc(a.name) + "</span>" + (cd > 0 ? '<i class="cd">' + cd + "</i>" : "") + "</button>";
+      html += '<button type="button" class="abtn' + (sel ? " sel" : "") + '" data-a="' + a.id + '"' + (cd > 0 ? " disabled" : "") + ' title="' + esc(a.name + ": " + a.desc) + '" aria-pressed="' + sel + '" aria-label="' + esc(a.name + (cd > 0 ? " (nabíjí se, ještě " + cd + ")" : "")) + '">' + icon(a.id) + "<span>" + esc(a.name) + "</span>" + (cd > 0 ? '<span class="pie" style="--f:' + Math.min(1, cd / (a.cooldown || cd)).toFixed(2) + '"></span><i class="cd">' + cd + "</i>" : "") + "</button>";
     });
     var row = $("abilRow"); if (row.dataset.sig !== html) { row.dataset.sig = html; row.innerHTML = html; }
+    var oh = "", ot = st.tanks[1 - st.cur];
+    if (ot) E.ABILITIES.forEach(function (a) { if (!(a.id in (ot.cd || {}))) return; var ocd = ot.cd[a.id] | 0; oh += '<span class="oa' + (ocd > 0 ? " cdn" : "") + '" title="' + esc(a.name) + '">' + icon(a.id) + (ocd > 0 ? '<span class="pie" style="--f:' + Math.min(1, ocd / (a.cooldown || ocd)).toFixed(2) + '"></span>' : "") + "</span>"; });
+    var orow = $("oppAbil"); if (orow.dataset.sig !== oh) { orow.dataset.sig = oh; orow.innerHTML = oh; }
     $("shopBtn").hidden = !(act && t.shop);
     // stav
     var sp = $("statusPill"), txt, mine = false;
@@ -433,7 +531,9 @@
     else if (spec) txt = "Na tahu: " + nameOf(st.cur);
     else if (myTurnOnline()) { txt = "Jsi na tahu"; mine = true; }
     else txt = nameOf(st.cur) + " míří…";
-    sp.textContent = txt; sp.classList.toggle("mine", mine || (S.mode === "local" && !S.turn));
+    var isMine = mine || (S.mode === "local" && !S.turn && !st.matchOver);
+    if (sp.textContent !== txt) { sp.textContent = txt; clearTimeout(updateCtrl.st); sp.classList.remove("gone"); if (isMine) updateCtrl.st = setTimeout(function () { sp.classList.add("gone"); }, 1500); }
+    sp.classList.toggle("mine", isMine);
     $("skipReplay").hidden = !S.turn;
     updateWait();
     updateTitle();
@@ -494,7 +594,7 @@
     return new Promise(function (resolve) {
       var st = S.state, turn;
       try { turn = E.startTurn(st, inp); } catch (e) { console.error(e); S.corrupt = true; toast("Tah v dokumentu je neplatný."); resolve(false); return; }
-      S.turn = turn; cc.manual = false; cc.has = false; cc.impactUntil = 0; hideHint(true);
+      S.turn = turn; tickAcc = 0; cc.manual = false; cc.has = false; cc.impactUntil = 0; cc.quietUntil = 0; hideHint(true);
       if (inp.ability !== "airstrike" && inp.vx != null) { var a = E.velToAim(inp.vx, inp.vy); C.mem[st.cur] = { angle: clamp(a.angle, 0, 180), power: clamp(a.power, 0, 100) }; }
       setBubble(st.cur, typeof inp.note === "string" ? inp.note.slice(0, 40) : "");
       closeWeapons(); if (!$("shop").hidden) $("shop").hidden = true;
@@ -532,7 +632,8 @@
     var key = S.shown ? S.shown.seed + ":" + st.turnNo : ""; if (key === C.key) return; C.key = key; cc.manual = false;
     if (st.roundTurn === 0) faceMem(st);
     var m = C.mem[st.cur]; C.angle = m.angle; C.power = m.power; C.weapon = C.wmem[st.cur] || "grenade";
-    C.move = 0; C.ability = null; C.ax = null; C.cart = []; C.previewDirty = true;
+    C.move = 0; C.ability = null; C.ax = null; C.cart = []; C.previewDirty = true; C.giftBack = false;
+    C.giftOpts = attempt(function () { return E.giftOptions(st) || []; }, []); C.gift = C.giftOpts[0] || null;
     $("noteInput").value = "";
     fixWeapon();
   }
@@ -546,7 +647,7 @@
     if (mineNow && !wasMine) { sfx("turn"); buzz([22, 70, 22]); }
     wasMine = mineNow;
     if (view === "play" && canAct() && curTank().shop && C.shopDone !== shopKey() && $("shop").hidden) {
-      var sk = shopKey(), wait = (S.fast || !(S.g && S.g.t && S.g.t.length)) ? 0 : 1000; // chvili si prohlednout, co se stalo
+      var sk = shopKey(), wait = (S.fast || !(S.g && S.g.t && S.g.t.length)) ? 0 : 250; // dopad uz byl 1,2 s k vidění
       setTimeout(function () { if (view === "play" && canAct() && C.shopDone !== shopKey() && shopKey() === sk && $("shop").hidden) openShop(); }, wait);
     }
     // mezitím mohl dorazit další tah
@@ -557,32 +658,42 @@
   async function submit(inp) {
     if (!canAct()) return false;
     var why = E.validate(S.state, inp); if (why) { toast(why); return false; }
+    store.set("tanc-gnote", "1");
     if (S.mode === "local") {
       S.g = Object.assign({}, S.g, { t: S.g.t.concat([inp]) }); $("noteInput").value = ""; C.cart = [];
       pump(); return true;
     }
-    var len = S.g.t.length, seed = S.g.seed, gi = S.g.gi, nextG = Object.assign({}, S.g, { t: S.g.t.concat([inp]) });
-    S.committing = true; updateCtrl();
+    var len = S.g.t.length, seed = S.g.seed, gi = S.g.gi, prevG = S.g, nextG = Object.assign({}, S.g, { t: S.g.t.concat([inp]) });
+    S.committing = true; S.g = nextG; $("noteInput").value = ""; C.cart = []; pump(); updateCtrl(); // animace startuje hned, zapis běží souběžně
     var res; try { res = await NET.commit(S.id, S.v, function (g) { return g.t.length === len && g.seed === seed && g.gi === gi; }, nextG); } catch (e) { res = { ok: false, reason: "net" }; }
     S.committing = false;
     if (res.ok) {
       S.doc = res.doc; S.v = res.doc.v; S.g = res.doc.g; S.s0 = res.doc.s0 || ""; S.s1 = res.doc.s1 || "";
-      $("noteInput").value = ""; C.cart = []; pump(); return true;
+      pump(); updateCtrl(); return true;
     }
+    if (S.turn && S.animDone) { S.turn.finish(); S.animDone(); }
+    attempt(function () { return S.pumpP; }); await S.pumpP;
+    S.g = prevG; S.shown = null; pump(); await S.pumpP;
     if (res.reason === "conflict") { toast("Mezitím se hra změnila, tah se nezapsal."); if (res.doc) onDoc(res.doc, true); }
     else toast("Spojení nevyšlo, tah se neodeslal. Zkus to znovu.");
     updateCtrl(); return false;
   }
-  function fire() { if (!canAct()) { if (spectating()) toast("Přihlížíš, nehraješ."); return false; } return submit(buildInput()); }
+  function fire() {
+    if (!canAct()) { if (spectating()) toast("Přihlížíš, nehraješ."); return false; }
+    if (C.ability === "airstrike" && C.ax == null) { toast("Klepni na bojiště: kam padne nálet?"); return false; }
+    return submit(buildInput());
+  }
   $("fireBtn").addEventListener("click", fire);
 
   $("skipReplay").addEventListener("click", function () { S.fast = true; });
   function skipNow() { if (S.turn && S.animDone) { S.turn.finish(); S.animDone(); } S.fast = true; }
 
   /* ---------------- hlavní smyčka ---------------- */
-  var lastTs = 0, uiTick = 0, wasMine = false;
+  var lastTs = 0, uiTick = 0, wasMine = false, tickAcc = 0, faceAt = 0, spriteT = 0, spriteLast = 0;
   function onEvent(ev) {
-    if (ev.type === "explode") { cc.ix = ev.x; cc.iy = ev.y; cc.impactUntil = performance.now() + (S.fast ? 0 : 1100); }
+    if (ev.type === "explode") { cc.ix = ev.x; cc.iy = ev.y; cc.impactUntil = performance.now() + (S.fast ? 0 : 1150); }
+    if (ev.type === "gift" && S.turn) { giftFly(ev, S.turn.state); cc.quietUntil = Math.max(cc.quietUntil, performance.now() + (S.fast ? 0 : 1050)); }
+    if (ev.type === "explode" || ev.type === "damage" || ev.type === "die") cc.quietUntil = performance.now() + (S.fast ? 0 : 1200); // dopad a cisla zraneni nikdo nesmi zakryt
     if (!Snd) return;
     var mine = function (i) { return S.mode === "local" || (S.seat != null && S.seat === i); };
     switch (ev.type) {
@@ -591,6 +702,8 @@
       case "damage": if (ev.shielded) sfx("shieldhit"); else if (ev.amount > 0) { sfx("hit"); if (mine(ev.tank)) buzz([30, 40, 70]); } break;
       case "die": sfx("die"); if (mine(ev.tank)) buzz([80, 50, 160]); break;
       case "coins": if (ev.amount > 0) sfx("coin"); break;
+      case "gift": sfx("coin"); break;
+      case "giftBack": toast(nameOf(ev.tank) + " vrací dárek."); sfx("turn"); break;
       case "bounce": sfx("bounce"); break;
       case "split": sfx("split"); break;
       case "ability": sfx(ev.id === "shield" ? "shield" : ev.id === "repair" ? "repair" : ev.id === "airstrike" ? "plane" : "teleport"); break;
@@ -600,48 +713,141 @@
         break;
     }
   }
+  // dárek putuje od střelce k příjemci i s ikonou zbraně
+  function giftFly(ev, st) {
+    if (!R || !st) return; var a = st.tanks[ev.from], b = st.tanks[ev.to]; if (!a || !b) return;
+    var sz = R.size(), cl = function (p) { return { x: clamp(p.x, 30, sz.w - 30), y: clamp(p.y, 44, sz.h - 44) }; };
+    var pa = cl(R.toScreen(a.x, R.tankTop(a))), pb = cl(R.toScreen(b.x, R.tankTop(b))), mid = { x: (pa.x + pb.x) / 2, y: Math.max(40, Math.min(pa.y, pb.y) - 80) };
+    var el = document.createElement("div"); el.className = "giftfly"; el.setAttribute("aria-hidden", "true");
+    el.innerHTML = icon("gift") + '<span class="gw">' + icon(wIcon(ev.weapon)) + "</span>"; $("stage").appendChild(el);
+    var tf = function (p, s) { return "translate(" + Math.round(p.x - 22) + "px," + Math.round(p.y - 22) + "px) scale(" + s + ")"; };
+    var an = el.animate([{ transform: tf(pa, .5), opacity: 0 }, { transform: tf(mid, 1.1), opacity: 1, offset: .5 }, { transform: tf(pb, .95), opacity: 1, offset: .86 }, { transform: tf(pb, 1.3), opacity: 0 }], { duration: S.fast ? 200 : 1000, easing: "cubic-bezier(.4,0,.3,1)", fill: "forwards" });
+    an.onfinish = function () { el.remove(); };
+  }
+  // obličeje v HUD žijí: stejný tank oříznutý do kruhu, aktuální výraz
+  function drawFaces() {
+    if (!R || !R.drawFace) return; var cs = document.querySelectorAll("#hud .face"), d = Math.min(window.devicePixelRatio || 1, 3);
+    for (var i = 0; i < cs.length; i++) {
+      var c = cs[i], w = c.clientWidth || 46, pw = Math.round(w * d); if (!w) continue;
+      if (c.width !== pw) { c.width = pw; c.height = pw; }
+      var g = c.getContext("2d"); g.setTransform(d, 0, 0, d, 0, 0); g.clearRect(0, 0, w, w); R.drawFace(g, i, w / 2, w / 2, w / 2);
+    }
+  }
+  // sprity tanků na úvodních obrazovkách
+  function drawSprites(dt) {
+    spriteT += dt; if (spriteT - spriteLast < 0.04 || !R.drawTankSprite) return; spriteLast = spriteT;
+    var cs = document.querySelectorAll("#v-" + view + " canvas.sprite"), d = Math.min(window.devicePixelRatio || 1, 2);
+    for (var k = 0; k < cs.length; k++) {
+      var c = cs[k]; if (!c.clientWidth) continue;
+      if (!c._lw) { c._lw = c.width; c._lh = c.height; }
+      var pw = Math.round(c.clientWidth * d), ph = Math.round(pw * c._lh / c._lw); if (c.width !== pw || c.height !== ph) { c.width = pw; c.height = ph; }
+      var g = c.getContext("2d"), sc = c.width / c._lw, kind = c.dataset.sprite, T = spriteT, lw = c._lw, lh = c._lh;
+      g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, c.width, c.height); g.setTransform(sc, 0, 0, sc, 0, 0);
+      var tank = function (i, x, y, w, ex, o) { R.drawTankSprite(g, i, x, y, w, ex, Object.assign({ t: T }, o || {})); };
+      var dots = function (x0, y0, x1, y1, h) { g.fillStyle = "rgba(43,34,66,.65)"; for (var q = 0; q <= 14; q++) { var u = q / 14, px = x0 + (x1 - x0) * u, py = y0 + (y1 - y0) * u - 4 * h * u * (1 - u); g.beginPath(); g.arc(px, py, 2.6 - u * 1.2, 0, 7); g.fill(); } };
+      if (kind === "logo") { dots(138, lh - 70, 190, lh - 78, 70); tank(0, 78, lh - 14, 112, "aim", { barrel: 52 }); tank(1, lw - 78, lh - 14, 104, "scared", { flip: true }); }
+      else if (kind === "share") { tank(0, 82, lh - 10, 104, "win"); tank(1, lw - 82, lh - 10, 98, "idle", { flip: true }); dots(112, lh - 62, 188, lh - 66, 52); }
+      else if (kind === "vs") { tank(0, 76, lh - 10, 104, "aim"); tank(1, lw - 76, lh - 10, 98, "aim", { flip: true }); g.font = "700 34px Fredoka, sans-serif"; g.fillStyle = "#2B2440"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("VS", lw / 2, lh - 52); }
+      else if (kind === "info") {
+        var kd = c.dataset.kind;
+        if (kd === "missing") tank(1, lw / 2, lh - 12, 120, "lose", { flip: true });
+        else if (kd === "error") { tank(0, 66, lh - 12, 100, "hit"); tank(1, lw - 66, lh - 12, 94, "hit", { flip: true }); }
+        else tank(0, lw / 2, lh - 12 - Math.abs(Math.sin(T * 5)) * 4, 120, "idle");
+      } else if (kind === "end") {
+        var ew = parseInt($("endArt").dataset.w, 10);
+        if (ew === 0 || ew === 1) { tank(ew, lw * .33, lh - 12, 170, "win"); tank(1 - ew, lw * .76, lh - 12, 112, "lose", { flip: true }); }
+        else { tank(0, lw * .28, lh - 12, 140, "idle"); tank(1, lw * .72, lh - 12, 130, "idle", { flip: true }); }
+      }
+    }
+  }
+  var mini = $("miniMap"), mctx = mini.getContext("2d"), miniAt = 0;
+  function miniRR(c, x, y, w, h, r) { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }
+  function drawMini(st) {
+    var sz = R && R.size(), on = !!(sz && view === "play" && sz.w < 640 && sz.h >= 360 && R.pannable());
+    if (mini.hidden === on) mini.hidden = !on; $("stage").classList.toggle("withmini", on);
+    if (!on) return;
+    var w = mini.clientWidth, h = mini.clientHeight; if (!w || !h) return;
+    var d = window.devicePixelRatio || 1, pw = Math.round(w * d), ph = Math.round(h * d);
+    if (mini.width !== pw || mini.height !== ph) { mini.width = pw; mini.height = ph; }
+    var c = mctx; c.setTransform(d, 0, 0, d, 0, 0); c.clearRect(0, 0, w, h);
+    c.fillStyle = "#FFF9EE"; miniRR(c, 0, 0, w, h, h / 2); c.fill();
+    var pad = 7, iw = w - pad * 2, ih = h - pad * 2, hmax = 0; for (var q = 0; q < W; q += 8) if (st.h[q] > hmax) hmax = st.h[q];
+    var ytop = Math.max(0, H - hmax - 70), sx = function (x) { return pad + x / W * iw; }, sy = function (y) { return pad + clamp((y - ytop) / (H - ytop), 0, 1) * ih; };
+    c.beginPath(); c.moveTo(sx(0), pad + ih);
+    for (var x = 0; x <= W; x += 6) c.lineTo(sx(x), sy(H - st.h[Math.min(W - 1, x)]));
+    c.lineTo(sx(W), pad + ih); c.closePath(); c.fillStyle = "#F2B36B"; c.fill();
+    var cm = R.camera(), lim = R.limits(), vw = lim.cw / (lim.fit * cm.zoom), x0 = clamp(sx(cm.x - vw / 2), pad, pad + iw), x1 = clamp(sx(cm.x + vw / 2), pad, pad + iw);
+    c.strokeStyle = "#2B2440"; c.lineWidth = 2; c.lineJoin = "round"; c.strokeRect(x0, pad + .8, Math.max(4, x1 - x0), ih - 1.6);
+    st.tanks.forEach(function (t, i) {
+      if (!t || t.alive === false || t.hp <= 0) return;
+      c.beginPath(); c.arc(sx(t.x), sy(t.y - 8), i === st.cur ? 5.2 : 4.4, 0, Math.PI * 2); c.fillStyle = i === 0 ? "#F25A45" : "#7B61F2"; c.fill(); c.lineWidth = 1.8; c.strokeStyle = "#2B2440"; c.stroke();
+    });
+  }
+  function miniGo(ev) {
+    if (!R) return; var rc = mini.getBoundingClientRect(), wx = clamp((ev.clientX - rc.left - 7) / Math.max(1, rc.width - 14), 0, 1) * W, cm = R.camera();
+    R.setView(wx, cm.ty, cm.tz, { rate: 12 }); cc.manual = true;
+  }
+  mini.addEventListener("pointerdown", function (ev) { ev.preventDefault(); attempt(function () { mini.setPointerCapture(ev.pointerId); }); mini._down = true; miniGo(ev); });
+  mini.addEventListener("pointermove", function (ev) { if (mini._down) miniGo(ev); });
+  ["pointerup", "pointercancel"].forEach(function (n) { mini.addEventListener(n, function () { mini._down = false; }); });
+  var more = $("moreBtn"), toolMenu = $("toolMenu");
+  function closeToolMenu() { toolMenu.classList.remove("open"); more.setAttribute("aria-expanded", "false"); }
+  more.addEventListener("click", function () { var open = !toolMenu.classList.contains("open"); toolMenu.classList.toggle("open", open); more.setAttribute("aria-expanded", open ? "true" : "false"); });
+  document.addEventListener("click", function (e) { if (!toolMenu.classList.contains("open")) return; if (e.target.closest("#moreBtn") || e.target.closest("#muteBtn") || e.target.closest("#noteRow")) return; closeToolMenu(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeToolMenu(); });
   function loop(ts) {
     requestAnimationFrame(loop);
     var dt = Math.min(0.05, (ts - lastTs) / 1000 || 0.016); lastTs = ts;
-    if (view !== "play" || !R || !S.state) { if (Snd && view !== "play") Snd.whistleOff(); return; }
+    if (view !== "play" || !R || !S.state) { if (Snd && view !== "play") Snd.whistleOff(); if (view !== "play" && R) drawSprites(dt); return; }
     if (S.turn) {
-      var ticks = S.fast ? 22 : 2;
+      tickAcc = Math.min(tickAcc + dt * (S.fast ? 320 : 80), S.fast ? 80 : 10); var ticks = Math.floor(tickAcc); tickAcc -= ticks;
       for (var i = 0; i < ticks && !S.turn.done; i++) { var evs = S.turn.step(); for (var j = 0; j < evs.length; j++) { R.event(evs[j], S.turn.state); onEvent(evs[j]); } }
-      if (S.turn.done && S.animDone) { var done = S.animDone; done(); }
+      if (S.turn.done && S.animDone && (S.fast || performance.now() >= cc.quietUntil)) { var done = S.animDone; done(); }
     }
     var st = S.turn ? S.turn.state : S.state;
     if (Snd) { var pr0 = S.turn && !S.fast && st.proj && st.proj[0]; if (pr0) Snd.whistleOn(pr0.vy / 700); else Snd.whistleOff(); }
     camLoop(st);
     var act = canAct(), scene = { state: st, wind: st.wind, active: act || (S.mode === "local" && !S.turn && !st.matchOver) ? st.cur : null, angles: [C.mem[0].angle, C.mem[1].angle], names: [nameOf(0), nameOf(1)] };
     if (act) {
-      scene.aim = { idx: st.cur, angle: C.angle, power: C.power };
+      scene.aim = { idx: st.cur, angle: C.angle, power: Math.round(C.power * 2) / 2, dragging: !!(gest && gest.type === "aim" && gest.moved) };
       if (R.pannable()) scene.zone = { r: AIM_ZONE_PX / R.camera().scale };
       var gx = ghostX(); if (gx != null) scene.ghost = { idx: st.cur, x: gx };
-      if (C.ability && TARGETED[C.ability] && C.ax != null) scene.target = { x: C.ax, kind: C.ability };
-      if (C.previewDirty) { C.previewDirty = false; var inp = { weapon: C.weapon, vx: 0, vy: 0, move: C.move, ability: C.ability, ax: C.ax == null ? 0 : Math.round(C.ax) }; var v = E.aimToVel(C.angle, C.power); inp.vx = v.vx; inp.vy = v.vy; C.preview = attempt(function () { return E.previewPath(S.state, inp); }, null); }
+      if (C.ability && TARGETED[C.ability]) scene.target = { x: C.ax != null ? C.ax : R.camera().x, kind: C.ability, pending: C.ax == null };
+      if (C.previewDirty) { C.previewDirty = false; if (C.ability === "airstrike" && C.ax == null) C.preview = null; else { var inp = { weapon: C.weapon, vx: 0, vy: 0, move: C.move, ability: C.ability, ax: C.ax == null ? 0 : Math.round(C.ax) }; var v = E.aimToVel(C.angle, C.power); inp.vx = v.vx; inp.vy = v.vy; C.preview = attempt(function () { return E.previewPath(S.state, inp); }, null); } }
       scene.preview = C.preview;
     }
+    if (st.matchOver) scene.over = { winner: st.winner };
     R.frame(scene, dt);
     updateHud(st); placeBubble(st);
     uiTick += dt; if (uiTick > 0.25) { uiTick = 0; syncCamUi(); }
+    miniAt += dt; if (miniAt > 0.06) { miniAt = 0; drawMini(st); }
+    faceAt += dt; if (faceAt > 0.1) { faceAt = 0; drawFaces(); }
   }
 
   /* ---------------- konec zápasu ---------------- */
   var seriesAfter = function (g, st) { var w = (g.w || [0, 0]).slice(); if (st.winner === 0 || st.winner === 1) w[st.winner]++; return w; };
   function renderEnd() {
+    $("toast").hidden = true; clearTimeout(toast.t);
     var st = S.state, g = S.g, w = st.winner, sw = seriesAfter(g, st), pal = TR.PAL;
-    var pc = w === 0 || w === 1 ? pal[w] : { body: "#f6c76a", dark: "#c98a3a" };
-    $("endArt").style.setProperty("--wc", pc.body); $("endArt").style.setProperty("--wc2", pc.dark);
+    $("endArt").dataset.w = String(w);
     $("endTitle").textContent = w === 0 || w === 1 ? nameOf(w) + " bere zápas!" : "Remíza. Nikdo necouvl.";
     var sub;
     if (S.mode === "online" && S.seat != null) sub = w === -1 ? "Zápas skončil nerozhodně." : w === S.seat ? "Tenhle zápas je tvůj." : "Tenhle zápas ti utekl. Odveta?";
-    else sub = w === -1 ? "Zápas skončil nerozhodně." : "Vyhraná kola: " + st.wins[0] + " : " + st.wins[1];
-    $("endSub").textContent = sub;
+    else sub = w === -1 ? "Zápas skončil nerozhodně." : "";
+    $("endSub").textContent = sub; $("endSub").hidden = !sub;
     var html = "";
     [0, 1].forEach(function (i) {
       if (i === 1) html += '<span class="dash">:</span>';
-      html += '<div class="side' + (w === i ? " win" : "") + '" style="--c:' + pal[i].light + '"><b>' + esc(nameOf(i)) + '</b><span class="n">' + st.wins[i] + "</span><small>" + (sw[0] + sw[1] > 0 ? "série " + sw[i] : "kol vyhráno") + "</small></div>";
+      html += '<div class="side' + (w === i ? " win" : "") + '" style="--c:' + pal[i].body + '"><b>' + esc(nameOf(i)) + '</b><span class="n">' + st.wins[i] + "</span><small>" + (sw[0] + sw[1] > 0 ? "série " + sw[i] + (titleOf(sw[i]) ? " · " + titleOf(sw[i]) : "") : "kol vyhráno") + "</small></div>";
     });
+    if (R && R.setCosmetics) R.setCosmetics([tierOf(sw[0]), tierOf(sw[1])]);
+    var un = "", gw = g.w || [0, 0];
+    if (w === 0 || w === 1) {
+      var tb = tierOf(gw[w]), ta = tierOf(sw[w]), ttb = titleOf(gw[w]), tta = titleOf(sw[w]);
+      if (ta > tb) un = nameOf(w) + " získal " + TIER_ITEM[ta][w] + (tta && tta !== ttb ? " a titul " + tta : "");
+      else if (tta && tta !== ttb) un = nameOf(w) + " získal titul " + tta;
+    }
+    $("endUnlock").hidden = !un; $("endUnlock").textContent = un;
     $("endScore").innerHTML = html;
     var stk = stakeOf(g), line = "";
     if (stk && (w === 0 || w === 1)) { var W_ = nameOf(w), L_ = nameOf(1 - w); line = S.mode === "online" && S.seat != null ? (w === S.seat ? stk.win(W_, L_) : stk.lose(W_, L_)) : stk.third(W_, L_); }
@@ -827,18 +1033,17 @@
   (function setupPwa() {
     try {
       var c = document.createElement("canvas"); c.width = c.height = 192; var g = c.getContext("2d");
-      g.fillStyle = "#2a1a2e"; g.fillRect(0, 0, 192, 192);
-      g.fillStyle = "#f6c76a"; g.beginPath(); g.arc(138, 58, 28, 0, 7); g.fill(); g.fillStyle = "#f2a85a"; g.beginPath(); g.arc(138, 58, 16, 0, 7); g.fill();
-      g.fillStyle = "#7a4a63"; g.beginPath(); g.moveTo(0, 126); g.quadraticCurveTo(70, 96, 192, 124); g.lineTo(192, 192); g.lineTo(0, 192); g.fill();
-      g.fillStyle = "#5a8a4a"; g.fillRect(0, 156, 192, 36);
-      g.fillStyle = "#f6c76a"; g.save(); g.translate(112, 98); g.rotate(-0.5); g.fillRect(0, -7, 62, 14); g.restore();
-      g.fillStyle = "#4a2f45"; g.fillRect(34, 120, 124, 34); g.fillStyle = "#e8543c"; g.beginPath(); g.roundRect ? g.roundRect(46, 92, 100, 40, 16) : g.rect(46, 92, 100, 40); g.fill();
-      g.fillStyle = "#f2795f"; g.beginPath(); g.arc(96, 96, 26, 0, 7); g.fill();
-      g.fillStyle = "#fff6e4"; g.beginPath(); g.arc(85, 92, 8, 0, 7); g.arc(107, 92, 8, 0, 7); g.fill(); g.fillStyle = "#2a1a2e"; g.beginPath(); g.arc(88, 93, 4, 0, 7); g.arc(110, 93, 4, 0, 7); g.fill();
-      g.fillStyle = "#f3dcb2"; [52, 96, 140].forEach(function (x) { g.beginPath(); g.arc(x, 137, 9, 0, 7); g.fill(); });
-      var png = c.toDataURL("image/png");
+      g.fillStyle = "#CDEBEF"; g.fillRect(0, 0, 192, 192);
+      g.fillStyle = "#93CFB8"; g.beginPath(); g.moveTo(0, 120); g.quadraticCurveTo(70, 80, 192, 118); g.lineTo(192, 192); g.lineTo(0, 192); g.fill();
+      g.fillStyle = "#6BBD73"; g.fillRect(0, 150, 192, 42); g.fillStyle = "#F2B36B"; g.fillRect(0, 162, 192, 30);
+      g.fillStyle = "#2B2440"; g.save(); g.translate(104, 78); g.rotate(-0.55); g.fillRect(0, -9, 66, 18); g.restore();
+      g.fillStyle = "#3A3152"; g.beginPath(); g.roundRect ? g.roundRect(30, 116, 132, 38, 19) : g.rect(30, 116, 132, 38); g.fill();
+      g.fillStyle = "#F25A45"; g.beginPath(); g.moveTo(36, 124); g.bezierCurveTo(36, 80, 66, 60, 96, 60); g.bezierCurveTo(128, 60, 156, 82, 156, 124); g.closePath(); g.fill();
+      g.fillStyle = "#fff"; g.beginPath(); g.arc(80, 98, 15, 0, 7); g.arc(114, 98, 15, 0, 7); g.fill(); g.fillStyle = "#2B2440"; g.beginPath(); g.arc(85, 100, 7, 0, 7); g.arc(119, 100, 7, 0, 7); g.fill();
+      g.fillStyle = "#5D5279"; [52, 96, 140].forEach(function (x) { g.beginPath(); g.arc(x, 135, 9, 0, 7); g.fill(); });
+            var png = c.toDataURL("image/png");
       var ti = document.createElement("link"); ti.rel = "apple-touch-icon"; ti.href = png; document.head.appendChild(ti);
-      var man = { name: "Tančíky", short_name: "Tančíky", description: "Tahová tanková přestřelka pro dva.", lang: "cs", start_url: new URL(location.pathname, location.href).href, scope: new URL(".", location.href).href, display: "standalone", orientation: "any", background_color: "#2a1a2e", theme_color: "#2a1a2e", icons: [{ src: png, sizes: "192x192", type: "image/png", purpose: "any" }] };
+      var man = { name: "Tančíky", short_name: "Tančíky", description: "Tahová tanková přestřelka pro dva.", lang: "cs", start_url: new URL(location.pathname, location.href).href, scope: new URL(".", location.href).href, display: "standalone", orientation: "any", background_color: "#CDEBEF", theme_color: "#CDEBEF", icons: [{ src: png, sizes: "192x192", type: "image/png", purpose: "any" }] };
       var ml = document.createElement("link"); ml.rel = "manifest"; ml.href = URL.createObjectURL(new Blob([JSON.stringify(man)], { type: "application/manifest+json" })); document.head.appendChild(ml);
     } catch (e) { /* bez manifestu hra funguje dal */ }
   })();
@@ -849,7 +1054,7 @@
     var forced = /[?&]a2hs=1/.test(location.search), last = parseInt(store.get("tanc-a2hs") || "0", 10) || 0;
     if (!forced && (!ios || !safari || standalone || Date.now() - last < 14 * 864e5)) return;
     var box = $("a2hs");
-    setTimeout(function () { box.hidden = false; document.body.classList.add("has-a2hs"); }, 1800);
+    setTimeout(function () { if (view === "end" || view === "play" || !$("shop").hidden) return; box.hidden = false; document.body.classList.add("has-a2hs"); store.set("tanc-a2hs", String(Date.now())); }, 1800);
     $("a2hsClose").addEventListener("click", function () { box.hidden = true; document.body.classList.remove("has-a2hs"); store.set("tanc-a2hs", String(Date.now())); });
   })();
   window.addEventListener("offline", function () { onNet("Jsi offline, tahy se odešlou po připojení."); });
@@ -863,6 +1068,7 @@
   requestAnimationFrame(loop);
 
   window.__tanc = {
+    setView: function (v) { if (v === "share") renderShare(); setView(v); },
     state: function () { return S.state ? E.clone(S.state) : null; },
     hash: function () { return S.state ? E.hash(S.state) : null; },
     view: function () { return view; },

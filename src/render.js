@@ -1,33 +1,59 @@
-/* Tančíky: Canvas 2D renderer. Papírový diorama: vrstvy vystřižené z papíru, měkké stíny, teplé odpolední světlo.
-   Vše se kreslí procedurálně. Tohle je jen vzhled: smí používat Math.sin a náhodu, simulaci to neovlivní. */
+/* Tančíky: Canvas 2D renderer, směr „A Hřiště“. Plochý vektor: plné barvy, žádné přechody, rozmazání ani zrno.
+   Tanky jsou hračkové kapky s inkoustovým obrysem 2,5 px a živými výrazy. Vše se kreslí procedurálně.
+   Tohle je jen vzhled: smí používat Math.sin a náhodu, simulaci to neovlivní. */
 (function () {
   "use strict";
-  var W = 960, H = 540, TAU = Math.PI * 2;
-  var FONT = '"Lilita One", "Arial Rounded MT Bold", "Trebuchet MS", sans-serif';
+  var W = 960, H = 540, TAU = Math.PI * 2, DEG = Math.PI / 180;
+
+  /* ================= VZHLED: všechny barvy a míry na jednom místě (výměna vzhledu = úprava tohoto bloku) ================= */
+  var LOOK = {
+    font: '"Fredoka", "Arial Rounded MT Bold", system-ui, sans-serif',
+    sky: "#CDEBEF", far: "#B3DED1", near: "#93CFB8", cloud: "#E4F4F6",
+    soil: "#F2B36B", lip: "#6BBD73", lipW: 12, deep: "#DD9452", deepOff: 85,
+    ink: "#2B2440", cream: "#FFF9EE", line: "#EADFCB", accent: "#FFC93C", accentDeep: "#E9A913",
+    tread: "#3A3152", wheel: "#5D5279", blush: "#FF9C93", tongue: "#FF7A85", sweat: "#7FD3F0", white: "#FFFFFF",
+    boomCore: "#FFC93C", boomRing: "#FF5A4E", boomDirt: "#E39A55", fire: ["#FF6B4A", "#FF9A3C", "#FFC93C"],
+    debris: ["#F2B36B", "#DD9452", "#6BBD73"], smoke: "#FFF9EE", dust: "#E9B57E", teal: "#3FBFAE",
+    players: [
+      { main: "#F25A45", shade: "#C9412F", light: "#FFB3A3", pale: "#FFE3DC" },
+      { main: "#7B61F2", shade: "#5A43CC", light: "#C4B6FF", pale: "#ECE7FF" }
+    ],
+    deadMix: "#8E879E", deadAmt: 0.5,
+    outlinePx: 2.5, projOutlinePx: 2, shadowA: 0.16, shadowPx: 4, aimInkA: 0.65, zoneInkA: 0.25,
+    tankPxPhone: 92, tankPxDesk: 110, tsMin: 0.5, tsMax: 1.15,
+    edgeR: 32, cloudY: 50, cloudW: 150, cloudSpeed: 4,
+    hills: [
+      { col: "#B3DED1", base: 188, a1: 30, f1: 140, p1: 1.2, a2: 12, f2: 57, p2: 2.1, par: 0.03 },
+      { col: "#93CFB8", base: 246, a1: 24, f1: 104, p1: 4.0, a2: 9, f2: 41, p2: 0.7, par: 0.07 }
+    ]
+  };
+  var FONT = LOOK.font, INK = LOOK.ink, CREAM = LOOK.cream, ACC = LOOK.accent;
+
   var calmQuery = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : null;
   var calm = function () { return !!(calmQuery && calmQuery.matches); };
   // projektily v enginu: pozice a rychlosti jsou v sub-pixelech (S jednotek na pixel)
   var SUBPX = true;
 
-  var INK = "#2a1a2e", CREAM = "#fff1d6", MUSTARD = "#f6c76a", TOMATO = "#e8543c", PLUM = "#4a2f45";
-  var PAL = [
-    { body: "#ee5d44", light: "#f78f78", dark: "#b8402d", deep: "#8c2e22", flag: "#f6c76a" },
-    { body: "#2fa3ad", light: "#76cdd1", dark: "#1f7480", deep: "#175560", flag: "#f6c76a" }
-  ];
-  var DEAD = { body: "#7a6672", light: "#948190", dark: "#58485a", deep: "#43364a", flag: "#6a5a66" };
-  var CHUNK_COLORS = ["#cf8f52", "#b9653f", "#8f4a3b", "#6aa24f", "#cf8f52", "#b9653f"];
+  // PAL: app.js čte PAL[i].body (barvy UI); body/light/dark/deep zůstávají kvůli kompatibilitě
+  var PAL = LOOK.players.map(function (p) { return { body: p.main, light: p.light, dark: p.shade, deep: p.shade, flag: ACC, main: p.main, shade: p.shade, pale: p.pale }; });
+
   var WEAPON_LOOK = {
-    grenade: { c: "#4a2f45", hi: "#8b6a86", r: 5, trail: "smoke" },
-    triple: { c: "#f6c76a", hi: "#fff1d6", r: 3.6, trail: "smoke" },
-    mirv: { c: "#e8543c", hi: "#f78f78", r: 6, trail: "smoke", band: CREAM },
-    roller: { c: "#fff1d6", hi: "#ffffff", r: 5.5, trail: "dust", wheel: true },
-    drill: { c: "#f6c76a", hi: "#fff1d6", r: 5, trail: "dust", cone: true },
-    napalm: { c: "#ff8a3d", hi: "#ffd28a", r: 5.5, trail: "fire" },
-    dirt: { c: "#8f4a3b", hi: "#cf8f52", r: 5.5, trail: "dust", blob: true },
-    bouncer: { c: "#47b3b8", hi: "#b9f0f0", r: 5, trail: "smoke", stripe: CREAM },
-    spray: { c: "#fff1d6", hi: "#ffffff", r: 2.8, trail: "smoke" }
+    grenade: { c: "#5D5279", r: 5, trail: "smoke", fuse: true },
+    triple: { c: "#FFC93C", r: 3.8, trail: "smoke" },
+    mirv: { c: "#F25A45", r: 6, trail: "smoke", band: "#FFF9EE" },
+    roller: { c: "#FFF9EE", r: 5.5, trail: "dust", wheel: true },
+    drill: { c: "#FFC93C", r: 5, trail: "dust", cone: true },
+    napalm: { c: "#FF6B4A", r: 5.5, trail: "fire", core: "#FFC93C" },
+    dirt: { c: "#DD9452", r: 5.5, trail: "dust", blob: true },
+    bouncer: { c: "#7FD3F0", r: 5, trail: "smoke", stripe: "#FFF9EE" },
+    spray: { c: "#FFF9EE", r: 2.8, trail: "smoke" },
+    pirko: { c: "#3FBFAE", r: 4.2, trail: "smoke", feather: true },
+    konfety: { c: "#FFF9EE", r: 4.8, trail: "confetti", dots: ["#FFC93C", "#F25A45", "#7B61F2"] },
+    nuke: { c: "#3A3152", r: 7.5, trail: "smoke", band: "#FFC93C" },
+    leaper: { c: "#6BBD73", r: 4.6, trail: "dust" },
+    airstrike: { c: "#3A3152", r: 4.6, trail: "smoke", fin: true }
   };
-  var DEFAULT_LOOK = { c: "#4a2f45", hi: "#8b6a86", r: 4.5, trail: "smoke" };
+  var DEFAULT_LOOK = { c: "#5D5279", r: 4.5, trail: "smoke" };
 
   function fr(x) { var s = Math.sin(x * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); }
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
@@ -35,8 +61,9 @@
   function mix(c1, c2, t) { // #rrggbb mix
     var a = parseInt(c1.slice(1), 16), b = parseInt(c2.slice(1), 16);
     var r = Math.round(lerp(a >> 16, b >> 16, t)), g = Math.round(lerp((a >> 8) & 255, (b >> 8) & 255, t)), bl = Math.round(lerp(a & 255, b & 255, t));
-    return "rgb(" + r + "," + g + "," + bl + ")";
+    return "#" + ((1 << 24) + (r << 16) + (g << 8) + bl).toString(16).slice(1);
   }
+  function rgba(hex, a) { var n = parseInt(hex.slice(1), 16); return "rgba(" + (n >> 16) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + a + ")"; }
   function rr(c, x, y, w, h, r) { // rounded rect path
     r = Math.min(r, w / 2, h / 2);
     c.beginPath(); c.moveTo(x + r, y); c.lineTo(x + w - r, y); c.arcTo(x + w, y, x + w, y + r, r); c.lineTo(x + w, y + h - r);
@@ -44,30 +71,237 @@
   }
   function mk(w, h) { var c = document.createElement("canvas"); c.width = Math.max(1, Math.ceil(w)); c.height = Math.max(1, Math.ceil(h)); return c; }
 
+  /* ================= tvary tanků (jednotka: tank široký 100, počátek uprostřed na zemi, y nahoru záporné) ================= */
+  var SHAPES = null;
+  function shapes() {
+    if (SHAPES) return SHAPES;
+    SHAPES = [
+      { // hráč 1: široká kapka s náplastí, hustým obočím a čelenkou
+        hull: new Path2D("M-48 -20 H48 C51 -20 52 -24 51 -30 C47 -52 29 -62 0 -62 C-29 -62 -47 -52 -51 -30 C-52 -24 -51 -20 -48 -20Z"),
+        band: new Path2D("M-62 -29 Q0 -73 62 -29 L62 -38 Q0 -82 -62 -38Z"),
+        top: -62, tw: 51, wheels: [-34, -11.5, 11.5, 34], ey: -44, rx: 11, ry: 12, e1: 2, e2: 26, mx: 14, my: -31,
+        faceC: [14, -39], topUnits: 94, tall: false
+      },
+      { // hráč 2: vysoká kopule, tři kola, bambule, řasy, pihy
+        hull: new Path2D("M-40 -20 H40 C44 -20 45 -26 44 -34 C41 -64 24 -78 0 -78 C-24 -78 -41 -64 -44 -34 C-45 -26 -44 -20 -40 -20Z"),
+        top: -78, tw: 42, wheels: [-26, 0, 26], ey: -50, rx: 11, ry: 13.5, e1: 0, e2: 23, mx: 12, my: -32.5,
+        faceC: [11.5, -44], topUnits: 112, tall: true
+      }
+    ];
+    return SHAPES;
+  }
+  var deadPal = [null, null];
+  function palFor(style, dead) {
+    var p = LOOK.players[style];
+    if (!dead) return p;
+    if (!deadPal[style]) deadPal[style] = { main: mix(p.main, LOOK.deadMix, LOOK.deadAmt), shade: mix(p.shade, LOOK.deadMix, LOOK.deadAmt), light: mix(p.light, LOOK.deadMix, LOOK.deadAmt), pale: p.pale };
+    return deadPal[style];
+  }
+
+  /* ---- obličej: oko ---- */
+  function drawEye(c, P, cx, cy, rx, ry, face, side, la) {
+    c.strokeStyle = INK; c.lineCap = "round"; c.lineJoin = "round";
+    if (face === "blink") { c.lineWidth = 3.4; c.beginPath(); c.moveTo(cx - rx * 0.8, cy); c.quadraticCurveTo(cx, cy + 5, cx + rx * 0.8, cy); c.stroke(); return; }
+    if (face === "win") { c.lineWidth = 3.8; c.beginPath(); c.moveTo(cx - rx * 0.75, cy + 3); c.quadraticCurveTo(cx, cy - 9, cx + rx * 0.75, cy + 3); c.stroke(); return; }
+    if (face === "hit") {
+      c.lineWidth = 3.8; c.beginPath();
+      if (side < 0) { c.moveTo(cx - 6, cy - 7); c.lineTo(cx + 5, cy); c.lineTo(cx - 6, cy + 7); } else { c.moveTo(cx + 6, cy - 7); c.lineTo(cx - 5, cy); c.lineTo(cx + 6, cy + 7); }
+      c.stroke(); return;
+    }
+    if (face === "lose") { c.lineWidth = 3.6; c.beginPath(); c.moveTo(cx - 5.5, cy - 5.5); c.lineTo(cx + 5.5, cy + 5.5); c.moveTo(cx + 5.5, cy - 5.5); c.lineTo(cx - 5.5, cy + 5.5); c.stroke(); return; }
+    var px = cx + 2.6, py = cy + 1.2;
+    if (face === "aim") { px = cx + Math.cos(la * DEG) * 3.8; py = cy - Math.sin(la * DEG) * 3.8; }
+    if (face === "worry") { px = cx - 3; py = cy + 2.5; }
+    c.fillStyle = LOOK.white; c.beginPath(); c.ellipse(cx, cy, rx, ry, 0, 0, TAU); c.fill();
+    c.fillStyle = INK; c.beginPath(); c.arc(px, py, rx * 0.52, 0, TAU); c.fill();
+    c.fillStyle = LOOK.white; c.beginPath(); c.arc(px - 1.6, py - 2.2, 1.9, 0, TAU); c.fill();
+    if (face === "aim" || face === "worry") { // víčko: plochý šikmý řez v barvě trupu
+      var a, b;
+      if (face === "aim") { a = cy - ry * (side < 0 ? 0.52 : 0.2); b = cy - ry * (side < 0 ? 0.2 : 0.52); }
+      else { a = cy - ry * (side < 0 ? 0.3 : 0.62); b = cy - ry * (side < 0 ? 0.62 : 0.3); }
+      c.save(); c.beginPath(); c.ellipse(cx, cy, rx, ry, 0, 0, TAU); c.clip();
+      c.fillStyle = P.main; c.beginPath(); c.moveTo(cx - rx - 3, cy - ry - 3); c.lineTo(cx + rx + 3, cy - ry - 3); c.lineTo(cx + rx + 3, b); c.lineTo(cx - rx - 3, a); c.closePath(); c.fill();
+      var ext = face === "aim" ? 0.15 : 0;
+      c.strokeStyle = INK; c.lineWidth = face === "aim" ? 3.2 : 3; c.beginPath(); c.moveTo(cx - rx - 3, a - (b - a) * ext); c.lineTo(cx + rx + 3, b + (b - a) * ext); c.stroke();
+      c.restore();
+    }
+  }
+
+  /* ---- obličej: pusa ---- */
+  function drawMouth(c, face, x, y, tall) {
+    var w = 12; c.strokeStyle = INK; c.lineCap = "round"; c.lineJoin = "round";
+    if (face === "hit") { c.fillStyle = INK; c.beginPath(); c.ellipse(x, y + 1, 4.6, 5.4, 0, 0, TAU); c.fill(); c.fillStyle = LOOK.tongue; c.beginPath(); c.ellipse(x, y + 3.6, 3, 2, 0, 0, TAU); c.fill(); return; }
+    if (face === "win") {
+      c.fillStyle = INK; c.beginPath(); c.moveTo(x - w / 2 - 1, y - 3.5); c.lineTo(x + w / 2 + 1, y - 3.5); c.quadraticCurveTo(x + w / 2 + 1, y + 7, x, y + 7); c.quadraticCurveTo(x - w / 2 - 1, y + 7, x - w / 2 - 1, y - 3.5); c.closePath(); c.fill();
+      c.fillStyle = LOOK.tongue; c.beginPath(); c.moveTo(x - 3.6, y + 5.6); c.quadraticCurveTo(x, y + 1, x + 3.6, y + 5.6); c.quadraticCurveTo(x, y + 7.4, x - 3.6, y + 5.6); c.closePath(); c.fill(); return;
+    }
+    if (face === "aim") {
+      c.lineWidth = 2.8; c.beginPath(); c.moveTo(x - w / 2, y); c.lineTo(x + w / 2 - 2, y); c.stroke();
+      c.fillStyle = LOOK.tongue; c.lineWidth = 1.6; c.beginPath(); c.moveTo(x + 1, y); c.quadraticCurveTo(x + 2, y + 5, x + 5.5, y + 4.5); c.quadraticCurveTo(x + 8, y + 3.9, x + 7, y); c.closePath(); c.fill(); c.stroke(); return;
+    }
+    c.lineWidth = 2.7; c.beginPath();
+    if (face === "worry") { c.moveTo(x - 5, y + 2); c.quadraticCurveTo(x - 2, y - 1, x, y + 2); c.quadraticCurveTo(x + 3, y + 5, x + 5, y + 2); }
+    else if (face === "lose") { c.moveTo(x - 5.5, y + 3); c.quadraticCurveTo(x, y - 3.5, x + 5.5, y + 3); }
+    else if (tall) { c.moveTo(x - w / 2, y); c.quadraticCurveTo(x + 1, y + 4.5, x + w / 2 + 1, y - 2.6); }
+    else { c.moveTo(x - w / 2, y - 0.5); c.quadraticCurveTo(x, y + 4, x + w / 2, y - 0.5); }
+    c.stroke();
+  }
+
+  function sparkle(c, x, y, r, col) {
+    c.fillStyle = col; c.beginPath(); c.moveTo(x, y - r); c.quadraticCurveTo(x, y, x + r, y); c.quadraticCurveTo(x, y, x, y + r); c.quadraticCurveTo(x, y, x - r, y); c.quadraticCurveTo(x, y, x, y - r); c.closePath(); c.fill();
+  }
+
+  /* ---- doplňky výrazu: pot, čárky, jiskry ---- */
+  function drawExtras(c, face, tall, t, still) {
+    var dy = tall ? -10 : 0;
+    if (face === "hit") {
+      c.fillStyle = LOOK.sweat;
+      c.beginPath(); c.moveTo(-30, -74 + dy); c.quadraticCurveTo(-35, -66 + dy, -30, -64 + dy); c.quadraticCurveTo(-25, -66 + dy, -30, -74 + dy); c.fill();
+      c.beginPath(); c.moveTo(-42, -62 + dy); c.quadraticCurveTo(-46, -56 + dy, -42, -54 + dy); c.quadraticCurveTo(-38, -56 + dy, -42, -62 + dy); c.fill();
+      c.strokeStyle = INK; c.lineWidth = 3; c.lineCap = "round"; c.beginPath();
+      c.moveTo(44, -74 + dy); c.lineTo(50, -82 + dy); c.moveTo(52, -64 + dy); c.lineTo(61, -67 + dy); c.moveTo(40, -82 + dy); c.lineTo(41, -91 + dy); c.stroke();
+    }
+    if (face === "win") {
+      var k = still ? 1 : 1 + Math.sin(t * 5) * 0.18, k2 = still ? 1 : 1 + Math.sin(t * 5 + 2) * 0.2;
+      sparkle(c, -48, -70 + dy, 7 * k, ACC); sparkle(c, 52, -78 + dy, 9 * k2, ACC); sparkle(c, 60, -54 + dy, 5 * k, LOOK.white);
+    }
+  }
+
+  /* ---- celý tank v lokálních souřadnicích (sdílí hlavní plátno, bublina i ikona HUD) ---- */
+  function drawTankShape(c, o) {
+    var S = shapes()[o.style], P = o.pal, ol = o.ol, face = o.face, tall = S.tall, t = o.t || 0, still = !!o.still;
+    var rec = (o.recoil || 0) * 5;
+    c.lineJoin = "round"; c.lineCap = "round";
+    function line(w) { c.lineWidth = w == null ? ol : w; c.strokeStyle = INK; c.stroke(); }
+    // čelenka hráče 1: dva vlající cípy za tankem
+    if (!tall) {
+      for (var k = 1; k >= 0; k--) {
+        var L = 19 + k * 6, wv = still ? 0 : 1, ym = Math.sin(t * 9 + k * 1.7) * 3 * wv, yt = Math.sin(t * 9 + k * 1.7 - 1.3) * 4.5 * wv;
+        c.save(); c.translate(-48, -41 + k * 2.5); c.rotate((180 + (k ? 24 : 6)) * DEG);
+        c.beginPath(); c.moveTo(0, -2.9); c.quadraticCurveTo(L * 0.5, -3.1 + ym, L, -3.6 + yt); c.lineTo(L - 4.5, yt); c.lineTo(L, 3.6 + yt); c.quadraticCurveTo(L * 0.5, 3.1 + ym, 0, 2.9); c.closePath();
+        c.fillStyle = k ? LOOK.accentDeep : ACC; c.fill(); line();
+        c.restore();
+      }
+    }
+    // anténa s bambulí (hráč 2)
+    if (tall) {
+      var sw = o.sway || 0;
+      c.beginPath(); c.moveTo(-20, -70); c.quadraticCurveTo(-28 + sw * 0.5, -86, -34 + sw, -98); c.strokeStyle = INK; c.lineWidth = Math.max(3.2, ol * 1.3); c.stroke();
+      c.beginPath(); c.arc(-34 + sw, -100, 7.5, 0, TAU); c.fillStyle = ACC; c.fill(); line();
+      c.globalAlpha *= 0.75; c.fillStyle = LOOK.white; c.beginPath(); c.arc(-36.5 + sw, -102.5, 2.3, 0, TAU); c.fill(); c.globalAlpha /= 0.75;
+    }
+    // hlaveň
+    c.save(); c.translate(10, S.top + 13); c.rotate(-o.la * DEG);
+    rr(c, -rec, -5.5, 42, 11, 5.5); c.fillStyle = P.shade; c.fill(); line();
+    rr(c, 35 - rec, -7.5, 10, 15, 4); c.fillStyle = LOOK.tread; c.fill(); line();
+    c.restore();
+    // pásy a kola
+    rr(c, -S.tw, -22, S.tw * 2, 22, 11); c.fillStyle = LOOK.tread; c.fill(); line();
+    var wr = o.wheel || 0;
+    for (var i = 0; i < S.wheels.length; i++) {
+      var wx = S.wheels[i];
+      c.fillStyle = LOOK.wheel; c.beginPath(); c.arc(wx, -11, 6.6, 0, TAU); c.fill();
+      c.fillStyle = LOOK.tread; c.beginPath(); c.arc(wx, -11, 2.3, 0, TAU); c.fill();
+      c.beginPath(); c.arc(wx + Math.cos(wr) * 4.4, -11 + Math.sin(wr) * 4.4, 1.1, 0, TAU); c.fill();
+    }
+    // trup
+    c.fillStyle = P.main; c.fill(S.hull);
+    c.save(); c.clip(S.hull);
+    if (!tall) { // čelenka přes temeno
+      c.fillStyle = ACC; c.fill(S.band);
+      c.beginPath(); c.moveTo(-62, -29); c.quadraticCurveTo(0, -73, 62, -29); c.moveTo(-62, -38); c.quadraticCurveTo(0, -82, 62, -38); line();
+      c.fillStyle = LOOK.accentDeep; [[-30, -50.4], [-14, -54.4], [4, -55.4], [40, -46.3]].forEach(function (d) { c.beginPath(); c.arc(d[0], d[1], 1.7, 0, TAU); c.fill(); });
+    } else {
+      c.beginPath(); c.moveTo(-30, -52); c.quadraticCurveTo(-26, -66, -12, -72); c.strokeStyle = P.light; c.lineWidth = 4.5; c.stroke();
+    }
+    if (face === "lose") { // saze
+      c.fillStyle = rgba(INK, 0.3);
+      [[-30, -48, 7], [-21, -54, 5], [-38, -38, 4.5], [30, -30, 6], [21, -27, 4], [6, -60, 4]].forEach(function (s) { c.beginPath(); c.arc(s[0], s[1] + (tall ? -6 : 0), s[2], 0, TAU); c.fill(); });
+    }
+    c.restore();
+    c.lineWidth = ol; c.strokeStyle = INK; c.stroke(S.hull);
+    rr(c, -S.tw - 2, -27, S.tw * 2 + 4, 8, 4); c.fillStyle = P.shade; c.fill(); line();
+    if (!tall) { // knoflík čelenky a náplast
+      c.beginPath(); c.arc(-47, -40, 4.2, 0, TAU); c.fillStyle = ACC; c.fill(); line();
+      c.save(); c.translate(-29, -37); c.rotate(-30 * DEG); rr(c, -10, -4, 20, 8, 4); c.fillStyle = CREAM; c.fill(); c.fillStyle = LOOK.line; c.fillRect(-3.5, -4, 7, 8); c.restore();
+    }
+    // tvářičky, pihy
+    var ey = S.ey, e1 = S.e1, e2 = S.e2;
+    c.fillStyle = LOOK.blush; c.beginPath(); c.ellipse(e1 - 12, ey + 14, 4.8, 2.7, 0, 0, TAU); c.fill(); c.beginPath(); c.ellipse(e2 + 12, ey + 14, 3.6, 2.4, 0, 0, TAU); c.fill();
+    if (tall) { c.fillStyle = P.shade; [[-16, 9], [-12, 7.5], [-8, 9.5]].forEach(function (d) { c.beginPath(); c.arc(e1 + d[0], ey + d[1], 1.3, 0, TAU); c.fill(); }); }
+    // oči
+    drawEye(c, P, e1, ey, S.rx, S.ry, face, -1, o.la); drawEye(c, P, e2, ey, S.rx, S.ry, face, 1, o.la);
+    // obočí (hráč 1) / řasy (hráč 2, nejvýš 2 na oko)
+    if (!tall && face !== "win") {
+      var lift = face === "aim" ? 3 : face === "hit" ? -2 : 0;
+      var r1 = face === "aim" ? 16 : face === "hit" ? -16 : (face === "worry" || face === "lose") ? -14 : 6;
+      c.fillStyle = INK;
+      [[e1, r1], [e2, -r1]].forEach(function (b) { c.save(); c.translate(b[0], ey - 17 + lift); c.rotate(b[1] * DEG); rr(c, -9, -3, 18, 5.5, 2.75); c.fill(); c.restore(); });
+    }
+    if (tall && face !== "hit" && face !== "win" && face !== "lose") {
+      c.strokeStyle = INK; c.lineWidth = 2.6; c.lineCap = "round"; c.beginPath();
+      c.moveTo(e1 - 9, ey - 10); c.lineTo(e1 - 14.5, ey - 14); c.moveTo(e1 - 5, ey - 13); c.lineTo(e1 - 8, ey - 18);
+      c.moveTo(e2 + 9, ey - 10); c.lineTo(e2 + 14.5, ey - 14); c.moveTo(e2 + 5, ey - 13); c.lineTo(e2 + 8, ey - 18); c.stroke();
+    }
+    drawMouth(c, face, S.mx, S.my, tall);
+    drawExtras(c, face, tall, t, still);
+    if ((o.cos | 0) > 0) drawCosmetics(c, S, o.cos | 0, face, tall, ol);
+  }
+
+  /* ---- kosmetika za výhry v sérii: 1 = brýle / mašle, 2 = koruna, 3 = zlatý lem ---- */
+  function drawCosmetics(c, S, tier, face, tall, ol) {
+    c.lineJoin = "round"; c.lineCap = "round"; c.strokeStyle = INK; c.lineWidth = ol;
+    if (tier >= 3) { // zlatý lem: pruh nad pásy a zlatá náboj kol
+      rr(c, -S.tw - 2, -27, S.tw * 2 + 4, 8, 4); c.fillStyle = ACC; c.fill(); c.stroke();
+      c.fillStyle = ACC; S.wheels.forEach(function (wx) { c.beginPath(); c.arc(wx, -11, 2.6, 0, TAU); c.fill(); });
+    }
+    if (tier >= 1 && !tall && face !== "hit" && face !== "lose") { // sluneční brýle
+      [S.e1, S.e2].forEach(function (ex) { rr(c, ex - S.rx - 3.5, S.ey - S.ry * 0.82, S.rx * 2 + 7, S.ry * 1.75, 8); c.fillStyle = INK; c.fill(); c.stroke(); c.fillStyle = "rgba(255,255,255,.55)"; c.beginPath(); c.moveTo(ex - 6, S.ey - 7); c.lineTo(ex - 1, S.ey - 7); c.lineTo(ex - 6, S.ey - 1); c.closePath(); c.fill(); });
+      c.beginPath(); c.moveTo(S.e1 + S.rx + 3.5, S.ey - 4); c.lineTo(S.e2 - S.rx - 3.5, S.ey - 4); c.lineWidth = ol * 1.4; c.stroke(); c.lineWidth = ol;
+    }
+    if (tier >= 1 && tall) { // mašle na kopuli
+      var bx = 24, by = -71;
+      c.fillStyle = LOOK.tongue;
+      c.beginPath(); c.moveTo(bx, by); c.lineTo(bx + 15, by - 9); c.lineTo(bx + 15, by + 9); c.closePath(); c.fill(); c.stroke();
+      c.beginPath(); c.moveTo(bx, by); c.lineTo(bx - 15, by - 9); c.lineTo(bx - 15, by + 9); c.closePath(); c.fill(); c.stroke();
+      c.beginPath(); c.arc(bx, by, 5, 0, TAU); c.fillStyle = LOOK.blush; c.fill(); c.stroke();
+    }
+    if (tier >= 2) { // koruna
+      var cx = tall ? 8 : 4, cy = S.top + 2, w = 30, h = 20;
+      c.beginPath(); c.moveTo(cx - w / 2, cy); c.lineTo(cx - w / 2 - 2, cy - h); c.lineTo(cx - w / 4, cy - h * 0.55); c.lineTo(cx, cy - h - 4); c.lineTo(cx + w / 4, cy - h * 0.55); c.lineTo(cx + w / 2 + 2, cy - h); c.lineTo(cx + w / 2, cy); c.closePath();
+      c.fillStyle = ACC; c.fill(); c.stroke();
+      c.fillStyle = LOOK.boomRing; c.beginPath(); c.arc(cx, cy - 6, 2.6, 0, TAU); c.fill();
+    }
+  }
+
   function create(canvas) {
     var ctx = canvas.getContext("2d");
-    var cw = 1, ch = 1, dpr = 1, scale = 1, ox = 0, oy = 0, fit = 1, bk = 1, zMax = 3, SKYM = 160;
+    var cw = 1, ch = 1, dpr = 1, scale = 1, ox = 0, oy = 0, fit = 1, bk = 1, zMax = 3;
     var cam = { x: W / 2, y: H / 2, z: 1 }, tgt = { x: W / 2, y: H / 2, z: 1 }, camRate = 3, camInit = false;
-    var skyC = null, hills = [], clouds = [], cloudSpr = [], strata = null, grain = null;
+    var hills = [], hillsOk = false, cloud = { x: 210 };
     var terrC = mk(1, 1), tctx = terrC.getContext("2d"), tKey = "";
-    var parts = [], texts = [], trails = {}, planes = [], fires = [];
-    var fx = [{ hit: 0, blink: 1.2, wheel: 0, lastX: null, recoil: 0, dust: 0, mouth: 0, dead: false, shieldPing: 0 }, { hit: 0, blink: 2.4, wheel: 0, lastX: null, recoil: 0, dust: 0, mouth: 0, dead: false, shieldPing: 0 }];
+    var parts = [], texts = [], trails = {}, planes = [];
+    var mkFx = function (b) { return { hit: 0, blink: b, wheel: 0, lastX: null, recoil: 0, dust: 0, dead: false, shieldPing: 0 }; };
+    var fx = [mkFx(1.2), mkFx(2.9)];
     var shake = 0, time = 0, lastWind = 0, lastState = null, prevPos = [null, null];
+    var exprNow = ["idle", "idle"], edgeHit = [null, null];
+    var cosTier = [0, 0], themeKey = "", theme = null;
+    function setCosmetics(a) { cosTier = [(a && a[0]) | 0, (a && a[1]) | 0]; }
 
     /* ---------------- sizing + cached art ---------------- */
     function resize() {
       var r = canvas.getBoundingClientRect();
       dpr = Math.min(window.devicePixelRatio || 1, 2.5);
       var nw = Math.max(1, Math.round(r.width)), nh = Math.max(1, Math.round(r.height));
-      if (nw === cw && nh === ch && skyC) return false;
+      if (nw === cw && nh === ch && hillsOk) return false;
       cw = nw; ch = nh;
       canvas.width = Math.round(cw * dpr); canvas.height = Math.round(ch * dpr);
       fit = Math.min(cw / W, ch / H);
-      zMax = clamp(2.4 / fit, 1.25, 5);
+      zMax = clamp(3 / fit, 1.25, 5);
       bk = clamp(2 * dpr * fit, dpr * fit, 2.2); // kolik pixelu cache pripada na jeden svetovy pixel
       terrC.width = Math.ceil(W * bk); terrC.height = Math.ceil(H * bk); tctx = terrC.getContext("2d");
       tKey = "";
-      buildSky(); buildHills(); buildClouds(); buildStrata(); buildGrain();
+      buildHills();
       clampCam(cam); clampCam(tgt); applyView();
       return true;
     }
@@ -97,7 +331,7 @@
       tgt.x = cam.x; tgt.y = cam.y; tgt.z = cam.z; applyView();
     }
     function fitAll(snap) { setView(W / 2, yFit(), 1, { rate: 5, snap: !!snap }); }
-    function homeZoom() { return cw < 640 ? clamp(0.85 / fit, 1, zMax) : 1; }
+    function homeZoom() { return cw < 640 ? clamp(1.0 / fit, 1, zMax) : 1; }
     function camStep(dt) {
       var k = calm() ? 1 : 1 - Math.exp(-camRate * dt);
       cam.x += (tgt.x - cam.x) * k; cam.y += (tgt.y - cam.y) * k; cam.z *= Math.pow(tgt.z / cam.z, k);
@@ -107,215 +341,137 @@
     function pannable() { var s = fit * cam.z; return cw / s < W - 1 || ch / s < H - 1; }
     function uiK() { return clamp(0.95 / scale, 1, 2.4); }
 
-    function wobble(x, i) { return 6 * Math.sin(x / 70 + i * 1.7) + 3.5 * Math.sin(x / 23 + i * 2.3); }
-
-    function buildSky() {
-      skyC = mk(cw * dpr, (ch + SKYM * 2) * dpr); var c = skyC.getContext("2d");
-      c.setTransform(dpr, 0, 0, dpr, 0, SKYM * dpr);
-      var ox = (cw - W * fit) / 2, oy = ch - H * fit, scale = fit; // nebe se pece pro pohled na cele bojiste
-      var bands = [
-        { y: -9999, col: "#3a2a5c" }, { y: 20, col: "#5e3b6b" }, { y: 88, col: "#9a4f6e" },
-        { y: 150, col: "#d9715f" }, { y: 208, col: "#f0a066" }, { y: 262, col: "#f8cf8a" }
-      ];
-      var sx = function (x) { return ox + x * scale; }, sy = function (y) { return oy + y * scale; };
-      c.fillStyle = bands[0].col; c.fillRect(0, -SKYM, cw, ch + SKYM * 2);
-      for (var i = 1; i < bands.length; i++) {
-        c.save();
-        c.shadowColor = "rgba(25,8,35,.55)"; c.shadowBlur = 10 * Math.max(.5, scale); c.shadowOffsetY = -3 * Math.max(.5, scale);
-        c.fillStyle = bands[i].col; c.beginPath(); c.moveTo(0, ch + SKYM);
-        for (var px = 0; px <= cw + 8; px += 8) { var wx = (px - ox) / scale; c.lineTo(px, sy(bands[i].y + wobble(wx, i))); }
-        c.lineTo(cw, ch + SKYM); c.closePath(); c.fill(); c.restore();
-        if (i === 4) { // slunce se schovává za papírovým pruhem
-          var cx = sx(700), cy = sy(246);
-          c.save(); c.shadowColor = "rgba(25,8,35,.4)"; c.shadowBlur = 8 * Math.max(.5, scale); c.shadowOffsetY = 2 * Math.max(.5, scale);
-          [[64, "#fbe0a0"], [46, "#f9c872"], [30, "#f4a95c"]].forEach(function (d) { c.fillStyle = d[1]; c.beginPath(); c.arc(cx, cy, d[0] * scale, 0, TAU); c.fill(); });
-          c.restore();
-        }
-      }
+    /* ---------------- pozadí: nebe, jeden mrak, dvě vrstvy kopců ---------------- */
+    var HILL_M = 240, HILL_Y0 = 120;
+    var THEMES = { // plochá paleta, jen jemný posun: sky + dvě vrstvy kopců
+      vichr: { sky: "#D2E5EB", far: "#B6D8DA", near: "#95C6C0" },
+      mesic: { sky: "#DAD5F1", far: "#C2BCE4", near: "#A7A1D4" },
+      tezko: { sky: "#F3DDCB", far: "#E1CBB3", near: "#C9B79B" },
+      zrcadlo: { sky: "#CFEDE6", far: "#AEE0D5", near: "#8CD0BF" },
+      bohaci: { sky: "#FBF0C9", far: "#E6E2B4", near: "#C8D79F" },
+      kratery: { sky: "#F2D9D4", far: "#DEC9BE", near: "#C5B3A5" }
+    };
+    function themeFor(st) {
+      var th = Object.assign({ sky: LOOK.sky, far: LOOK.hills[0].col, near: LOOK.hills[1].col }, THEMES[st.mod] || {});
+      if (st.map === "vulkan") { th.sky = mix(th.sky, "#FFD9B8", 0.35); th.far = mix(th.far, "#F0B58E", 0.3); }
+      else if (st.map === "kanon") { th.far = mix(th.far, "#E3B98B", 0.22); }
+      return th;
     }
-
+    function hillCol(i) { return theme ? (i === 0 ? theme.far : theme.near) : LOOK.hills[i].col; }
     function buildHills() {
-      hills = [];
-      var defs = [
-        { col: "#6e416a", base: 330, a1: 34, f1: 130, p1: 1, a2: 12, f2: 47, p2: 2, pines: 0, par: 0.03 },
-        { col: "#8a4b62", base: 372, a1: 28, f1: 96, p1: 4, a2: 9, f2: 31, p2: 1, pines: 1, par: 0.06 },
-        { col: "#a65a58", base: 414, a1: 22, f1: 80, p1: 2, a2: 7, f2: 26, p2: 5, pines: 0, par: 0.1 }
-      ];
-      var M = 90;
-      defs.forEach(function (d, li) {
-        var cv = mk((W + M * 2) * bk, H * bk), c = cv.getContext("2d");
-        c.setTransform(bk, 0, 0, bk, M * bk, 0);
-        var ridge = function (x) { return d.base + d.a1 * Math.sin(x / d.f1 + d.p1) + d.a2 * Math.sin(x / d.f2 + d.p2); };
-        c.save(); c.shadowColor = "rgba(25,8,35,.5)"; c.shadowBlur = 9 * bk; c.shadowOffsetY = -3 * bk;
-        c.fillStyle = d.col; c.beginPath(); c.moveTo(-M, H);
-        for (var x = -M; x <= W + M; x += 6) c.lineTo(x, ridge(x));
-        c.lineTo(W + M, H); c.closePath(); c.fill(); c.restore();
-        if (d.pines) { // papírové smrčky
-          for (var i = 0; i < 26; i++) {
-            var px = -M + fr(i * 3.1 + li) * (W + 2 * M), py = ridge(px) + 3, hh = 14 + fr(i + 9) * 14;
-            c.fillStyle = mix(d.col, "#2a1a2e", 0.35 + fr(i + 4) * 0.2);
-            c.beginPath(); c.moveTo(px, py - hh); c.lineTo(px + hh * .32, py - hh * .35); c.lineTo(px + hh * .2, py - hh * .35); c.lineTo(px + hh * .42, py); c.lineTo(px - hh * .42, py); c.lineTo(px - hh * .2, py - hh * .35); c.lineTo(px - hh * .32, py - hh * .35); c.closePath(); c.fill();
-          }
-        }
-        hills.push({ cv: cv, par: d.par, M: M });
+      hills = []; hillsOk = true;
+      var hk = Math.min(bk, 1.6);
+      LOOK.hills.forEach(function (d, di) {
+        var cv = mk((W + HILL_M * 2) * hk, (H - HILL_Y0) * hk), c = cv.getContext("2d");
+        c.setTransform(hk, 0, 0, hk, HILL_M * hk, -HILL_Y0 * hk);
+        c.fillStyle = hillCol(di); c.beginPath(); c.moveTo(-HILL_M, H);
+        for (var x = -HILL_M; x <= W + HILL_M; x += 5) c.lineTo(x, d.base + d.a1 * Math.sin(x / d.f1 + d.p1) + d.a2 * Math.sin(x / d.f2 + d.p2));
+        c.lineTo(W + HILL_M, H); c.closePath(); c.fill();
+        hills.push({ cv: cv, par: d.par });
       });
     }
-
-    function buildClouds() {
-      cloudSpr = [];
-      [[1, 1], [0.7, 2], [1.25, 3]].forEach(function (s, k) {
-        var sc = s[0], cv = mk(200 * bk, 100 * bk), c = cv.getContext("2d");
-        c.setTransform(bk, 0, 0, bk, 0, 0);
-        var puffs = [[40, 62, 22], [70, 50, 28], [102, 56, 24], [130, 64, 17], [28, 70, 14]];
-        c.save(); c.shadowColor = "rgba(60,20,50,.4)"; c.shadowBlur = 7 * bk; c.shadowOffsetY = 4 * bk;
-        c.fillStyle = "#f6b8a0"; c.beginPath();
-        puffs.forEach(function (p) { c.moveTo(p[0] + p[2], p[1] + 3); c.arc(p[0], p[1] + 3, p[2], 0, TAU); });
-        c.fill(); c.restore();
-        c.fillStyle = "#fff1d6"; c.beginPath();
-        puffs.forEach(function (p) { c.moveTo(p[0] + p[2], p[1]); c.arc(p[0], p[1], p[2], 0, TAU); });
-        c.fill();
-        cloudSpr.push({ cv: cv, w: 160 * sc, h: 80 * sc, k: k });
-      });
-      clouds = [];
-      for (var i = 0; i < 11; i++) clouds.push({ x: fr(i * 7.7) * (W + 300) - 150, y: i < 6 ? 40 + fr(i * 3.3) * 170 : -260 + fr(i * 3.3) * 280, v: 0.6 + fr(i + 1) * 0.8, s: i % 3, sz: 0.7 + fr(i + 5) * 0.7 });
+    function drawSky() { ctx.fillStyle = theme ? theme.sky : LOOK.sky; ctx.fillRect(0, 0, cw, ch); }
+    function drawHills() {
+      for (var i = 0; i < hills.length; i++) {
+        var hl = hills[i], offx = -(cam.x - W / 2) * hl.par;
+        ctx.drawImage(hl.cv, -HILL_M + offx, HILL_Y0, W + HILL_M * 2, H - HILL_Y0);
+        // za okrajem bojiště (široké obrazovky) pokračuje kopec plnou barvou
+        ctx.fillStyle = hillCol(i); ctx.fillRect(-1200, H - 40, 1200 - HILL_M + offx + 1, 40); ctx.fillRect(W + HILL_M + offx - 1, H - 40, 1200, 40);
+      }
+    }
+    function drawCloud(dt) { // jediný pomalý mrak v horních ~18 % bojiště, mimo dosah míření
+      if (!calm()) { cloud.x += LOOK.cloudSpeed * dt; if (cloud.x > W + 260) cloud.x = -260; }
+      var x = cloud.x - (cam.x - W / 2) * 0.15, y = LOOK.cloudY, w = LOOK.cloudW;
+      ctx.fillStyle = LOOK.cloud; rr(ctx, x - w / 2, y, w, 26, 13); ctx.fill();
+      ctx.beginPath(); ctx.arc(x - w * 0.18, y + 4, 19, 0, TAU); ctx.arc(x + w * 0.1, y - 2, 25, 0, TAU); ctx.arc(x + w * 0.32, y + 8, 14, 0, TAU); ctx.fill();
     }
 
-    function buildStrata() { // textura hlíny: pevné vrstvy podle y, kamínky, kořínky, zkameněliny
-      strata = mk(W * bk, H * bk); var c = strata.getContext("2d");
-      var s = bk; c.setTransform(s, 0, 0, s, 0, 0);
-      var bands = [
-        { y: 9999, col: "#cf8f52" }, { y: 372, col: "#b9653f" }, { y: 424, col: "#8f4a3b" }, { y: 470, col: "#603444" }, { y: 506, col: "#3d2237" }
-      ];
-      // od nejhlubší: každá vyšší vrstva leží nahoře a vrhá stín dolů
-      var order = [4, 3, 2, 1, 0];
-      c.fillStyle = bands[4].col; c.fillRect(0, 0, W, H);
-      var bounds = [372, 424, 470, 506];
-      for (var k = 3; k >= 0; k--) {
-        c.save(); c.shadowColor = "rgba(20,6,20,.5)"; c.shadowBlur = 5 * s; c.shadowOffsetY = 3 * s;
-        c.fillStyle = bands[k].col; c.beginPath(); c.moveTo(0, 0); c.lineTo(W, 0);
-        for (var x = W; x >= 0; x -= 6) c.lineTo(x, bounds[k] + 4 * Math.sin(x / 41 + k * 2) + 2.5 * Math.sin(x / 13 + k));
-        c.closePath(); c.fill(); c.restore();
-      }
-      void order;
-      // zrnko papíru + tmavší pruhy
-      for (var i = 0; i < 260; i++) {
-        var px = fr(i * 1.7) * W, py = 200 + fr(i * 2.9 + 3) * 340, depth = py;
-        var pc = depth < 372 ? "#b97a40" : depth < 424 ? "#a05536" : depth < 470 ? "#7a3f33" : "#4d2a3e";
-        c.fillStyle = pc; c.globalAlpha = .55; c.beginPath(); c.ellipse(px, py, 5 + fr(i) * 14, 1.1 + fr(i + 4) * 1.4, 0, 0, TAU); c.fill();
-      }
-      c.globalAlpha = 1;
-      // kamínky
-      for (var j = 0; j < 150; j++) {
-        var qx = fr(j * 5.3 + 1) * W, qy = 230 + fr(j * 7.1) * 300, rad = 2 + fr(j + 2) * 4.2;
-        var base = qy < 372 ? "#e0b983" : qy < 424 ? "#d89a74" : qy < 470 ? "#b77a64" : "#7a5266";
-        c.fillStyle = "rgba(25,8,25,.35)"; c.beginPath(); c.ellipse(qx, qy + 1.6, rad, rad * .75, 0, 0, TAU); c.fill();
-        c.fillStyle = base; c.beginPath(); c.ellipse(qx, qy, rad, rad * .75, fr(j) * 2, 0, TAU); c.fill();
-        c.fillStyle = "rgba(255,240,220,.4)"; c.beginPath(); c.ellipse(qx - rad * .3, qy - rad * .25, rad * .35, rad * .2, 0, 0, TAU); c.fill();
-      }
-      // zkameněliny v hlubokých vrstvách: kost, spirála, zub
-      var fossil = function (kind, fx0, fy0, a) {
-        c.save(); c.translate(fx0, fy0); c.rotate(a); c.strokeStyle = "rgba(255,226,190,.55)"; c.fillStyle = "rgba(255,226,190,.45)"; c.lineWidth = 3; c.lineCap = "round";
-        if (kind === 0) { c.beginPath(); c.moveTo(-12, 0); c.lineTo(12, 0); c.stroke(); [[-12, -3], [-12, 3], [12, -3], [12, 3]].forEach(function (p) { c.beginPath(); c.arc(p[0], p[1], 3, 0, TAU); c.fill(); }); }
-        else if (kind === 1) { c.beginPath(); for (var t = 0; t < 14; t += .3) c.lineTo(Math.cos(t) * (1 + t * .8), Math.sin(t) * (1 + t * .8)); c.stroke(); }
-        else { c.beginPath(); c.moveTo(-7, -6); c.quadraticCurveTo(0, -9, 7, -6); c.quadraticCurveTo(5, 6, 0, 9); c.quadraticCurveTo(-5, 6, -7, -6); c.fill(); }
-        c.restore();
-      };
-      [[120, 478, 0, .3], [330, 520, 1, 0], [520, 492, 2, .4], [700, 515, 0, -.2], [840, 484, 1, 1.2], [60, 522, 2, 0], [610, 454, 1, .6], [250, 455, 0, -.5], [900, 518, 0, .15]].forEach(function (f) { fossil(f[2], f[0], f[1], f[3]); });
-    }
-
-    function buildGrain() {
-      var g = mk(128, 128), c = g.getContext("2d"), id = c.createImageData(128, 128);
-      for (var i = 0; i < id.data.length; i += 4) { var v = 235 + Math.random() * 20; id.data[i] = v; id.data[i + 1] = v - 6; id.data[i + 2] = v - 14; id.data[i + 3] = Math.random() < .5 ? 0 : 255; }
-      c.putImageData(id, 0, 0); grain = ctx.createPattern(g, "repeat");
-    }
-
-    /* ---------------- terrain ---------------- */
-    function drawTerrain(h) {
-      var s = bk; tctx.setTransform(s, 0, 0, bk, 0, 0); tctx.clearRect(0, 0, W, H);
-      var y = function (x) { return H - h[Math.max(0, Math.min(W - 1, x))]; };
-      tctx.save(); tctx.beginPath(); tctx.moveTo(0, H);
-      for (var x = 0; x < W; x++) tctx.lineTo(x + .5, y(x));
-      tctx.lineTo(W, H); tctx.closePath(); tctx.clip();
-      tctx.drawImage(strata, 0, 0, W, H);
-      // kořínky pod trávou
-      tctx.strokeStyle = "rgba(78,44,34,.7)"; tctx.lineCap = "round";
-      for (var b = 6; b < W; b += 29 + (b % 11)) {
-        var sy = y(b), len = 12 + fr(b * 1.3) * 22, dir = fr(b) < .5 ? -1 : 1;
-        tctx.lineWidth = 1.7; tctx.beginPath(); tctx.moveTo(b, sy + 5);
-        tctx.bezierCurveTo(b + dir * 4, sy + len * .4, b - dir * 5, sy + len * .7, b + dir * 3, sy + len); tctx.stroke();
-        tctx.lineWidth = 1.1; tctx.beginPath(); tctx.moveTo(b + dir * 1.5, sy + len * .45); tctx.lineTo(b + dir * 9, sy + len * .8); tctx.stroke();
-      }
-      // vnitřní stín pod travnatým okrajem
-      tctx.strokeStyle = "rgba(40,14,24,.28)"; tctx.lineWidth = 9; tctx.lineJoin = "round"; tctx.beginPath();
-      for (var x2 = 0; x2 < W; x2 += 2) { if (x2 === 0) tctx.moveTo(x2, y(x2) + 7); else tctx.lineTo(x2, y(x2) + 7); } tctx.stroke();
-      tctx.restore();
-      // travnatý okraj: stín, tmavý, světlý, odlesk
-      var path = function (dy) { tctx.beginPath(); for (var xx = 0; xx < W; xx += 2) { if (xx === 0) tctx.moveTo(0, y(0) + dy); else tctx.lineTo(xx + .5, y(xx) + dy); } tctx.lineTo(W, y(W - 1) + dy); };
-      tctx.lineJoin = "round"; tctx.lineCap = "round";
-      tctx.strokeStyle = "rgba(30,10,24,.3)"; tctx.lineWidth = 13; path(3); tctx.stroke();
-      tctx.strokeStyle = "#47783b"; tctx.lineWidth = 10; path(1); tctx.stroke();
-      tctx.strokeStyle = "#6fae55"; tctx.lineWidth = 6.4; path(-1); tctx.stroke();
-      tctx.strokeStyle = "rgba(190,235,130,.75)"; tctx.lineWidth = 1.8; path(-3); tctx.stroke();
-      // trsy a kytičky
-      for (var t = 4; t < W; t += 17 + (t % 7)) {
-        var ty = y(t) - 3, th = 4 + fr(t * .7) * 5, k = fr(t * 2.1);
-        tctx.fillStyle = k < .5 ? "#6fae55" : "#8fc766";
-        tctx.beginPath(); tctx.moveTo(t - 3, ty + 2); tctx.lineTo(t - 2.5, ty - th); tctx.lineTo(t - .5, ty); tctx.lineTo(t + .5, ty - th - 2); tctx.lineTo(t + 2, ty); tctx.lineTo(t + 3.5, ty - th * .8); tctx.lineTo(t + 3.5, ty + 2); tctx.closePath(); tctx.fill();
-        if (fr(t * 3.7) > .86) { var fc = fr(t) > .5 ? MUSTARD : "#f2a0a8"; tctx.fillStyle = "#47783b"; tctx.fillRect(t - .5, ty - 8, 1.2, 8); tctx.fillStyle = fc; tctx.beginPath(); tctx.arc(t, ty - 9, 3, 0, TAU); tctx.fill(); tctx.fillStyle = "#fff1d6"; tctx.beginPath(); tctx.arc(t, ty - 9, 1.1, 0, TAU); tctx.fill(); }
-      }
+    /* ---------------- terén: jedna plocha hlíny, lem trávy, hlubší pás ---------------- */
+    function buildTerrain(h) {
+      var c = tctx; c.setTransform(bk, 0, 0, bk, 0, 0); c.clearRect(0, 0, W, H);
+      var y = function (x) { return H - h[clamp(x, 0, W - 1)]; };
+      c.beginPath(); c.moveTo(-2, H); c.lineTo(-2, y(0));
+      for (var x = 0; x < W; x++) c.lineTo(x + 0.5, y(x));
+      c.lineTo(W + 2, y(W - 1)); c.lineTo(W + 2, H); c.closePath();
+      c.fillStyle = LOOK.soil; c.fill();
+      c.save(); c.clip();
+      c.beginPath(); c.moveTo(-2, H); c.lineTo(-2, y(0) + LOOK.deepOff);
+      for (var x2 = 0; x2 < W; x2 += 2) c.lineTo(x2 + 0.5, y(x2) + LOOK.deepOff);
+      c.lineTo(W + 2, y(W - 1) + LOOK.deepOff); c.lineTo(W + 2, H); c.closePath(); c.fillStyle = LOOK.deep; c.fill();
+      c.beginPath(); c.moveTo(-8, y(0));
+      for (var x3 = 0; x3 < W; x3 += 2) c.lineTo(x3 + 0.5, y(x3));
+      c.lineTo(W - 0.5, y(W - 1)); c.lineTo(W + 8, y(W - 1));
+      c.strokeStyle = LOOK.lip; c.lineWidth = LOOK.lipW * 2; c.lineJoin = "round"; c.lineCap = "round"; c.stroke();
+      c.restore();
     }
     function terrainKey(h) { var a = 0, b = 0; for (var i = 0; i < W; i += 1) { a += h[i]; b += h[i] * ((i % 7) + 1); } return a + ":" + b + ":" + bk; }
+    function drawTerrainEdges(h) { // pokračování terénu za okraj bojiště (jen na hodně širokých obrazovkách)
+      if (cw / scale <= W + 1) return;
+      [[-1400, H - h[0]], [W, H - h[W - 1]]].forEach(function (e) {
+        ctx.fillStyle = LOOK.soil; ctx.fillRect(e[0], e[1], 1400, H - e[1]);
+        ctx.fillStyle = LOOK.deep; ctx.fillRect(e[0], e[1] + LOOK.deepOff, 1400, Math.max(0, H - e[1] - LOOK.deepOff));
+        ctx.fillStyle = LOOK.lip; ctx.fillRect(e[0], e[1], 1400, LOOK.lipW);
+      });
+    }
 
-    /* ---------------- particles ---------------- */
+    /* ---------------- částice (vše ploché) ---------------- */
     var CAL = function () { return calm() ? 0.35 : 1; };
     function P(o) { parts.push(o); if (parts.length > 900) parts.splice(0, parts.length - 900); }
     function puff(x, y, o) {
       o = o || {};
-      P({ k: "puff", x: x, y: y, vx: o.vx || 0, vy: o.vy || 0, r: o.r || 8, gr: o.gr == null ? 14 : o.gr, life: 0, max: o.max || 1.1, col: o.col || "#e9d3bd", wind: o.wind == null ? 1 : o.wind, a: o.a == null ? .9 : o.a });
+      P({ k: "puff", x: x, y: y, vx: o.vx || 0, vy: o.vy || 0, r: o.r || 8, gr: o.gr == null ? 14 : o.gr, life: 0, max: o.max || 1.1, col: o.col || LOOK.smoke, wind: o.wind == null ? 1 : o.wind, a: o.a == null ? 0.6 : o.a });
     }
-    function chunk(x, y, vx, vy, size, colour) {
-      P({ k: "chunk", x: x, y: y, vx: vx, vy: vy, r: size, rot: Math.random() * TAU, vr: (Math.random() - .5) * 14, life: 0, max: 1.2 + Math.random() * .8, col: colour || CHUNK_COLORS[(Math.random() * CHUNK_COLORS.length) | 0], n: 4 + ((Math.random() * 2) | 0), sd: Math.random() * 99 });
+    function chunk(x, y, vx, vy, size, colour, tri) {
+      P({ k: "chunk", x: x, y: y, vx: vx, vy: vy, r: size, rot: Math.random() * TAU, vr: (Math.random() - 0.5) * 14, life: 0, max: 1.1 + Math.random() * 0.7, col: colour || LOOK.debris[(Math.random() * 3) | 0], tri: tri == null ? Math.random() < 0.5 : tri });
     }
-    function spark(x, y, vx, vy, col, max) { P({ k: "spark", x: x, y: y, vx: vx, vy: vy, life: 0, max: max || .4, col: col || MUSTARD, r: 1.8 }); }
-    function ring(x, y, r0, r1, max, col, w) { P({ k: "ring", x: x, y: y, r0: r0, r1: r1, life: 0, max: max || .4, col: col || CREAM, w: w || 5 }); }
-    function burst(x, y, r, cols) { P({ k: "burst", x: x, y: y, r: r, life: 0, max: .42, cols: cols || [TOMATO, MUSTARD, CREAM], pts: 10 + ((Math.random() * 4) | 0), rot: Math.random() * TAU, sd: Math.random() * 50 }); }
-    function star(x, y, vx, vy, col, size) { P({ k: "star", x: x, y: y, vx: vx, vy: vy, r: size || 4, life: 0, max: .9 + Math.random() * .5, col: col || CREAM, rot: Math.random() * TAU }); }
-    function floatText(x, y, text, col, size) { texts.push({ x: x, y: y, text: text, col: col || CREAM, life: 0, max: 1.5, size: size || 17 }); }
+    function blast(x, y, r, max, ring, core) { P({ k: "blast", x: x, y: y, r: r, life: 0, max: max || 0.22, ring: ring || LOOK.boomRing, core: core || LOOK.boomCore }); }
+    function spark(x, y, vx, vy, col, max) { P({ k: "spark", x: x, y: y, vx: vx, vy: vy, life: 0, max: max || 0.4, col: col || ACC, r: 1.8 }); }
+    function ring(x, y, r0, r1, max, col, w) { P({ k: "ring", x: x, y: y, r0: r0, r1: r1, life: 0, max: max || 0.4, col: col || CREAM, w: w || 4 }); }
+    function star(x, y, vx, vy, col, size) { P({ k: "star", x: x, y: y, vx: vx, vy: vy, r: size || 4, life: 0, max: 0.9 + Math.random() * 0.5, col: col || CREAM, rot: Math.random() * TAU }); }
+    function confetti(x, y, n, cols, spread, fall) {
+      for (var i = 0; i < n; i++) P({ k: "confetti", x: x + (Math.random() - 0.5) * spread, y: y - Math.random() * 20, vx: (Math.random() - 0.5) * (fall ? 60 : 220), vy: fall ? 40 + Math.random() * 80 : -80 - Math.random() * 160, rot: Math.random() * TAU, vr: (Math.random() - 0.5) * 10, w: 5 + Math.random() * 5, hh: 3 + Math.random() * 3, col: cols[i % cols.length], life: 0, max: (fall ? 3.2 : 1.6) + Math.random() * 1.2, ph: Math.random() * 6 });
+    }
+    function floatText(x, y, text, col, big, max) { texts.push({ x: x, y: y, text: text, col: col || CREAM, life: 0, max: max || 1.2, big: !!big }); }
 
     function explode(e) {
       var r = e.r || 20, c = CAL(), kind = e.kind || "boom", x = e.x, y = e.y;
+      if (e.weapon === "konfety") { // neškodný prask konfet
+        ring(x, y, 3, 26, 0.3, ACC, 3);
+        confetti(x, y, Math.round(30 * c + 6), [ACC, LOOK.players[0].main, LOOK.players[1].main, CREAM, LOOK.sweat], 10, false);
+        return;
+      }
+      if (e.weapon === "pirko") {
+        blast(x, y, r * 0.9, 0.18, LOOK.teal, CREAM);
+        for (var fp = 0; fp < 4 * c + 2; fp++) star(x, y, (Math.random() - 0.5) * 70, -30 - Math.random() * 60, fp % 2 ? LOOK.teal : CREAM, 3 + Math.random() * 2);
+        return;
+      }
       if (kind === "small") {
-        ring(x, y, r * .3, r * 1.3, .25, CREAM, 3);
-        for (var i = 0; i < 3 * c + 2; i++) chunk(x, y, (Math.random() - .5) * 150, -60 - Math.random() * 100, 2 + Math.random() * 2);
-        puff(x, y - 2, { r: r * .5, max: .6, vy: -12 });
-        shake = Math.max(shake, 1.2 * (calm() ? 0 : 1));
+        blast(x, y, r * 1.2, 0.18);
+        for (var i = 0; i < 3 * c + 2; i++) chunk(x, y, (Math.random() - 0.5) * 150, -60 - Math.random() * 100, 2 + Math.random() * 2);
+        shake = Math.max(shake, calm() ? 0 : 1.2);
         return;
       }
       if (kind === "dirt") {
-        ring(x, y, r * .4, r * 1.2, .35, "#cf8f52", 4);
-        for (var d = 0; d < (16 + r / 2) * c; d++) chunk(x, y, (Math.random() - .5) * 190, -60 - Math.random() * 190, 2.5 + Math.random() * 4, ["#8f4a3b", "#b9653f", "#cf8f52"][d % 3]);
-        for (var q = 0; q < 6 * c + 2; q++) puff(x + (Math.random() - .5) * r, y - Math.random() * r * .4, { r: r * .35 + Math.random() * 6, col: "#d6a77e", vy: -18 - Math.random() * 20, vx: (Math.random() - .5) * 40, max: 1 + Math.random() * .6, gr: 16 });
+        ring(x, y, r * 0.4, r * 1.2, 0.3, LOOK.deep, 4);
+        for (var d = 0; d < (10 + r / 3) * c; d++) chunk(x, y, (Math.random() - 0.5) * 190, -60 - Math.random() * 190, 2.5 + Math.random() * 3.5, LOOK.debris[d % 2]);
+        for (var q = 0; q < 5 * c + 2; q++) puff(x + (Math.random() - 0.5) * r, y - Math.random() * r * 0.4, { r: r * 0.3 + Math.random() * 6, col: LOOK.dust, a: 0.5, vy: -18 - Math.random() * 20, vx: (Math.random() - 0.5) * 40, max: 1 + Math.random() * 0.6, gr: 16 });
         shake = Math.max(shake, calm() ? 0 : Math.min(5, r / 14));
         return;
       }
       if (kind === "fire") {
-        burst(x, y, r * 1.2, ["#ff8a3d", MUSTARD, CREAM]);
-        for (var f = 0; f < (14 + r / 2) * c; f++) P({ k: "ember", x: x + (Math.random() - .5) * r, y: y + (Math.random() - .5) * r * .5, vx: (Math.random() - .5) * 90, vy: -30 - Math.random() * 110, r: 2 + Math.random() * 3.5, life: 0, max: .6 + Math.random() * .8 });
-        for (var p = 0; p < 5 * c + 2; p++) puff(x + (Math.random() - .5) * r, y - Math.random() * r * .5, { r: r * .35 + Math.random() * 7, col: "#c9a58f", vy: -30 - Math.random() * 20, max: 1.2 + Math.random() * .6 });
+        blast(x, y, r * 1.3, 0.22, LOOK.fire[0], LOOK.fire[2]);
+        for (var f = 0; f < (10 + r / 2) * c; f++) P({ k: "ember", x: x + (Math.random() - 0.5) * r, y: y + (Math.random() - 0.5) * r * 0.5, vx: (Math.random() - 0.5) * 90, vy: -30 - Math.random() * 110, r: 2 + Math.random() * 3, life: 0, max: 0.6 + Math.random() * 0.8 });
         shake = Math.max(shake, calm() ? 0 : Math.min(5, r / 12));
         return;
       }
-      // boom: záblesk, rázová vlna, kusy hlíny, kouřové žmolky co se nechají unášet větrem
-      burst(x, y, r * 1.5);
-      ring(x, y, r * .5, r * 2.0, .42, CREAM, Math.max(4, r / 6));
-      ring(x, y, r * .3, r * 1.4, .3, MUSTARD, Math.max(3, r / 9));
-      for (var k = 0; k < (14 + r * .7) * c; k++) {
-        var a = Math.random() * TAU, sp = 60 + Math.random() * (140 + r * 3);
-        chunk(x, y, Math.cos(a) * sp, Math.sin(a) * sp - 70, 2.5 + Math.random() * (3 + r / 14));
+      // boom: plochý kruhový záblesk (0,22 s), 5-7 kousků hlíny, pár krémových obláčků
+      blast(x, y, r * 1.45, 0.3);
+      ring(x, y, r * 0.9, r * 2.1, 0.34, LOOK.boomRing, 3); // vnější prstenec #FF5A4E
+      for (var k = 0; k < 6; k++) { // 6 kousků hlíny #E39A55 s obrysem
+        var a = -Math.PI * (0.1 + 0.8 * (k + Math.random() * 0.7) / 6), sp = 110 + Math.random() * (120 + r * 2.4);
+        chunk(x, y, Math.cos(a) * sp, Math.sin(a) * sp, 4 + Math.random() * 3, LOOK.boomDirt, k % 2 === 0);
       }
-      for (var s = 0; s < (7 + r / 6) * c; s++) { var a2 = Math.random() * TAU, sp2 = 120 + Math.random() * 200; spark(x, y, Math.cos(a2) * sp2, Math.sin(a2) * sp2, s % 2 ? MUSTARD : CREAM, .25 + Math.random() * .25); }
-      for (var m = 0; m < (5 + r / 8) * c; m++) puff(x + (Math.random() - .5) * r * 1.2, y + (Math.random() - .5) * r * .8, { r: r * .3 + Math.random() * 9, col: m % 3 === 0 ? "#bfa28f" : "#e9d3bd", vy: -26 - Math.random() * 40, vx: (Math.random() - .5) * 30, max: 1.3 + Math.random() * .9, gr: 18 });
-      shake = Math.max(shake, calm() ? 0 : Math.min(11, 2 + r / 7));
+      shake = Math.max(shake, calm() ? 0 : 6 / Math.max(0.4, scale)); // 6 px na obrazovce, ~200 ms
     }
 
     function event(ev, st) {
@@ -323,221 +479,214 @@
       var t = ev.type, c = CAL();
       if (st) lastState = st;
       if (t === "explode") explode(ev);
+      else if (t === "rage") {
+        var rt = st && st.tanks[ev.tank];
+        if (rt) {
+          ring(rt.x, rt.y - 14, 6, 38, 0.5, LOOK.boomRing, 3);
+          for (var rq = 0; rq < 7 * c + 2; rq++) puff(rt.x + (Math.random() - 0.5) * 22, rt.y - 24, { r: 2 + Math.random() * 2, vx: (Math.random() - 0.5) * 50, vy: -30 - Math.random() * 40, max: 0.8, gr: 0, wind: 0, col: LOOK.boomRing, a: 0.9 });
+          floatText(rt.x, rt.y - 54, "Vztek!", LOOK.boomRing, true, 1.3);
+        }
+      }
       else if (t === "fire") {
-        var tk = ev.tank != null ? ev.tank : 0; if (fx[tk]) { fx[tk].recoil = 1; fx[tk].mouth = .35; }
-        for (var i = 0; i < 6 * c + 1; i++) spark(ev.x, ev.y, (Math.random() - .3) * 120, (Math.random() - .7) * 90, i % 2 ? MUSTARD : CREAM, .22);
-        puff(ev.x, ev.y, { r: 7, max: .6, vy: -8 }); puff(ev.x + 3, ev.y - 3, { r: 5, max: .5, vy: -14 });
+        var tk = ev.tank != null ? ev.tank : 0; if (fx[tk]) fx[tk].recoil = 1;
+        for (var i = 0; i < 6 * c + 1; i++) spark(ev.x, ev.y, (Math.random() - 0.3) * 120, (Math.random() - 0.7) * 90, i % 2 ? ACC : CREAM, 0.22);
         shake = Math.max(shake, calm() ? 0 : 1.6);
       } else if (t === "damage") {
-        var tt = st && st.tanks[ev.tank], dx = tt ? tt.x : 0, dy = tt ? tt.y - 36 : 0;
-        if (fx[ev.tank]) { fx[ev.tank].hit = .7; }
-        if (ev.shielded) { floatText(dx, dy, ev.amount > 0 ? "štít -" + ev.amount : "štít", "#9fe6e9", 16); if (fx[ev.tank]) fx[ev.tank].shieldPing = 1; }
-        else if (ev.amount > 0) floatText(dx, dy, "-" + ev.amount, "#ff8a73", 20);
+        var tt = st && st.tanks[ev.tank], dx = tt ? tt.x : 0, dy = tt ? tt.y - (shapes()[tt.color === 1 ? 1 : 0].topUnits + 8) * TS : 0;
+        if (fx[ev.tank] && (ev.amount > 0 || ev.shielded)) fx[ev.tank].hit = 0.8;
+        if (ev.shielded) { floatText(dx, dy, ev.amount > 0 ? "štít -" + ev.amount : "štít", CREAM, true, 0.9); if (fx[ev.tank]) fx[ev.tank].shieldPing = 1; }
+        else if (ev.amount > 0) floatText(dx, dy, "-" + ev.amount, CREAM, true, 0.9);
       } else if (t === "die") {
         var d = st && st.tanks[ev.tank];
         if (d) {
-          explode({ x: d.x, y: d.y - 14, r: 46, kind: "boom" });
-          var pal = PAL[d.color === 1 ? 1 : 0];
-          for (var j = 0; j < 12 * c + 3; j++) chunk(d.x, d.y - 16, (Math.random() - .5) * 240, -80 - Math.random() * 200, 3 + Math.random() * 4, j % 3 ? pal.body : pal.dark);
+          explode({ x: d.x, y: d.y - 30 * TS, r: 46, kind: "boom" });
+          var pal = LOOK.players[d.color === 1 ? 1 : 0];
+          for (var j = 0; j < 8 * c + 3; j++) chunk(d.x, d.y - 30 * TS, (Math.random() - 0.5) * 240, -80 - Math.random() * 200, 3 + Math.random() * 4, j % 3 ? pal.main : pal.shade);
         }
         if (fx[ev.tank]) fx[ev.tank].dead = true;
         shake = Math.max(shake, calm() ? 0 : 12);
       } else if (t === "coins") {
         var ct = st && st.tanks[ev.tank];
-        if (ct && ev.amount > 0) floatText(ct.x, ct.y - 48, "+" + ev.amount, MUSTARD, 18);
+        if (ct && ev.amount > 0) floatText(ct.x, ct.y - 92 * TS, "+" + ev.amount, ACC, false, 1.2);
       } else if (t === "ability") {
-        var at = st && st.tanks[ev.tank], ax = ev.x != null ? ev.x : (at ? at.x : 0), ay = ev.y != null ? ev.y : (at ? at.y - 12 : 0);
+        var at = st && st.tanks[ev.tank], ax = ev.x != null ? ev.x : (at ? at.x : 0), ay = ev.y != null ? ev.y - 30 * TS : (at ? at.y - 30 * TS : 0);
         if (ev.id === "teleport") {
           var old = prevPos[ev.tank];
-          [[ax, ay], old ? [old.x, old.y - 18] : null].forEach(function (p) { if (!p) return; ring(p[0], p[1], 6, 40, .5, "#9fe6e9", 3); for (var n = 0; n < 14 * c + 3; n++) { var a = Math.random() * TAU; star(p[0] + Math.cos(a) * 14, p[1] + Math.sin(a) * 14, Math.cos(a) * 30, -30 - Math.random() * 60, n % 2 ? "#9fe6e9" : CREAM, 3 + Math.random() * 3); } });
+          [[ax, ay], old ? [old.x, old.y - 30 * TS] : null].forEach(function (p) { if (!p) return; ring(p[0], p[1], 6, 44, 0.5, LOOK.sweat, 3); for (var n = 0; n < 12 * c + 3; n++) { var a = Math.random() * TAU; star(p[0] + Math.cos(a) * 14, p[1] + Math.sin(a) * 14, Math.cos(a) * 30, -30 - Math.random() * 60, n % 2 ? LOOK.sweat : CREAM, 3 + Math.random() * 3); } });
         } else if (ev.id === "airstrike") {
-          planes.push({ x: ax - 460, y: 46, vx: 520, life: 0, ax: ax, drops: [] });
+          planes.push({ x: ax - 460, y: 46, vx: 520, life: 0, ax: ax });
         } else if (ev.id === "shield") {
-          if (fx[ev.tank]) fx[ev.tank].shieldPing = 1; ring(ax, ay, 10, 44, .45, "#9fe6e9", 4);
+          if (fx[ev.tank]) fx[ev.tank].shieldPing = 1; ring(ax, ay, 10, 60, 0.45, LOOK.sweat, 4);
         } else if (ev.id === "repair") {
-          for (var h2 = 0; h2 < 10 * c + 3; h2++) star(ax + (Math.random() - .5) * 40, ay + 10 + Math.random() * 10, 0, -30 - Math.random() * 30, "#9fe08a", 4);
-          if (at) floatText(at.x, at.y - 48, "oprava", "#b8f09a", 16);
+          for (var h2 = 0; h2 < 10 * c + 3; h2++) star(ax + (Math.random() - 0.5) * 50, ay + 20 + Math.random() * 10, 0, -30 - Math.random() * 30, LOOK.lip, 4);
+          if (at) floatText(at.x, at.y - 92 * TS, "oprava", "#BFF0B0", false, 1.2);
         } else if (ev.id === "calm") {
-          for (var w2 = 0; w2 < 3; w2++) ring(ax, ay, 8 + w2 * 6, 50 + w2 * 18, .6 + w2 * .1, CREAM, 2);
+          for (var w2 = 0; w2 < 3; w2++) ring(ax, ay, 8 + w2 * 6, 50 + w2 * 18, 0.6 + w2 * 0.1, CREAM, 2);
         } else if (ev.id === "magnet") {
-          ring(ax, ay, 40, 6, .6, "#e58a8f", 3); ring(ax, ay, 56, 10, .7, "#e58a8f", 2);
+          ring(ax, ay, 40, 6, 0.6, LOOK.blush, 3); ring(ax, ay, 56, 10, 0.7, LOOK.blush, 2);
         } else if (ev.id === "antigrav") {
-          for (var b2 = 0; b2 < 9 * c + 2; b2++) puff(ax + (Math.random() - .5) * 50, ay + Math.random() * 20, { r: 3 + Math.random() * 4, col: "#cfeef0", vy: -50 - Math.random() * 40, gr: 0, wind: 0, max: 1 + Math.random() * .5, a: .8 });
+          for (var b2 = 0; b2 < 9 * c + 2; b2++) puff(ax + (Math.random() - 0.5) * 50, ay + Math.random() * 20, { r: 3 + Math.random() * 4, col: LOOK.cloud, vy: -50 - Math.random() * 40, gr: 0, wind: 0, max: 1 + Math.random() * 0.5, a: 0.8 });
         }
       } else if (t === "bounce") {
-        ring(ev.x, ev.y, 3, 18, .28, CREAM, 2.5); for (var z = 0; z < 4 * c + 1; z++) chunk(ev.x, ev.y, (Math.random() - .5) * 80, -40 - Math.random() * 60, 1.8 + Math.random() * 1.6);
+        ring(ev.x, ev.y, 3, 18, 0.28, CREAM, 2.5); for (var z = 0; z < 4 * c + 1; z++) chunk(ev.x, ev.y, (Math.random() - 0.5) * 80, -40 - Math.random() * 60, 1.8 + Math.random() * 1.6);
       } else if (t === "split") {
-        ring(ev.x, ev.y, 4, 26, .3, MUSTARD, 3); burst(ev.x, ev.y, 14, [MUSTARD, CREAM, CREAM]);
-        for (var q = 0; q < 5 * c + 1; q++) spark(ev.x, ev.y, (Math.random() - .5) * 160, (Math.random() - .5) * 160, CREAM, .3);
+        ring(ev.x, ev.y, 4, 26, 0.3, ACC, 3); blast(ev.x, ev.y, 14, 0.2, ACC, CREAM);
+        for (var q = 0; q < 5 * c + 1; q++) spark(ev.x, ev.y, (Math.random() - 0.5) * 160, (Math.random() - 0.5) * 160, CREAM, 0.3);
       } else if (t === "fall") {
         var ft = st && st.tanks[ev.tank];
-        if (ft) for (var u = 0; u < 5 * c + 1; u++) puff(ft.x + (Math.random() - .5) * 34, ft.y - 2, { r: 4 + Math.random() * 4, vx: (Math.random() - .5) * 60, vy: -10 - Math.random() * 14, max: .6, col: "#d6a77e" });
+        if (ft) for (var u = 0; u < 5 * c + 1; u++) puff(ft.x + (Math.random() - 0.5) * 60 * TS, ft.y - 2, { r: 4 + Math.random() * 4, vx: (Math.random() - 0.5) * 60, vy: -10 - Math.random() * 14, max: 0.6, col: LOOK.dust, a: 0.55 });
       } else if (t === "move") {
         var mt = st && st.tanks[ev.tank], f = fx[ev.tank];
-        if (mt && f && f.dust <= 0) { f.dust = .07; puff(mt.x - 14 * Math.sign(ev.dir || 1), mt.y - 3, { r: 3.2, vx: (Math.random() - .5) * 14, vy: -8, max: .5, col: "#d6a77e", a: .7 }); }
+        if (mt && f && f.dust <= 0) { f.dust = 0.07; puff(mt.x - 46 * TS * Math.sign(ev.dir || 1), mt.y - 3, { r: 3.2, vx: (Math.random() - 0.5) * 14, vy: -8, max: 0.5, col: LOOK.dust, a: 0.55 }); }
       } else if (t === "roundEnd" || t === "matchEnd") {
         if (ev.winner === 0 || ev.winner === 1) {
-          var wt = st && st.tanks[ev.winner], pal2 = PAL[ev.winner];
-          var cols = [pal2.body, MUSTARD, CREAM, pal2.light];
-          for (var cf = 0; cf < (t === "matchEnd" ? 90 : 36) * c; cf++) P({ k: "confetti", x: (wt ? wt.x : W / 2) + (Math.random() - .5) * 200, y: -20 - Math.random() * 60, vx: (Math.random() - .5) * 60, vy: 40 + Math.random() * 80, rot: Math.random() * TAU, vr: (Math.random() - .5) * 10, w: 5 + Math.random() * 5, hh: 3 + Math.random() * 3, col: cols[cf % cols.length], life: 0, max: 3.2 + Math.random() * 1.4, ph: Math.random() * 6 });
+          var wt = st && st.tanks[ev.winner], pl2 = LOOK.players[ev.winner];
+          confetti(wt ? wt.x : W / 2, -30, Math.round((t === "matchEnd" ? 90 : 36) * c), [pl2.main, ACC, CREAM, pl2.light], 200, true);
         }
       }
+      // "gift" a "giftBack" jsou jen pro HUD
     }
 
-    function reset() { parts.length = 0; texts.length = 0; trails = {}; planes.length = 0; shake = 0; fx.forEach(function (f) { f.hit = 0; f.dead = false; f.lastX = null; f.recoil = 0; f.mouth = 0; f.shieldPing = 0; }); prevPos = [null, null]; }
+    function reset() { parts.length = 0; texts.length = 0; trails = {}; planes.length = 0; shake = 0; fx.forEach(function (f) { f.hit = 0; f.dead = false; f.lastX = null; f.recoil = 0; f.shieldPing = 0; }); prevPos = [null, null]; exprNow = ["idle", "idle"]; }
 
-    /* ---------------- tanks ---------------- */
-    function slopeAt(h, x) { var a = H - h[clamp(Math.round(x) - 11, 0, W - 1)], b = H - h[clamp(Math.round(x) + 11, 0, W - 1)]; return clamp(Math.atan2(b - a, 22), -.7, .7); }
+    /* ---------------- výrazy ---------------- */
+    function nearShot(proj, t, i) {
+      for (var k = 0; k < proj.length; k++) {
+        var p = proj[k], pp = projPx(p), vy = SUBPX ? p.vy / 100 : p.vy;
+        if (p.o === i && vy <= 0) continue; // vlastní stoupající střela nestraší
+        if (Math.hypot(pp.x - t.x, pp.y - (t.y - 30)) < 150) return true;
+      }
+      return false;
+    }
+    function computeExpr(scene, st) {
+      var over = scene.over || null, win = null;
+      if (over) { if (over.winner === 0 || over.winner === 1) win = over.winner; }
+      else if (st.matchOver) { if (st.winner === 0 || st.winner === 1) win = st.winner; }
+      else if (st.roundOver && st.lastRound && (st.lastRound.winner === 0 || st.lastRound.winner === 1)) win = st.lastRound.winner;
+      var busy = (st.proj && st.proj.length > 0) || planes.length > 0;
+      var aimIdx = scene.aim ? scene.aim.idx : (scene.active != null ? scene.active : -1);
+      for (var i = 0; i < 2; i++) {
+        var t = st.tanks[i], f = fx[i], e = "idle";
+        if (!t) { exprNow[i] = e; continue; }
+        if (t.alive === false || t.hp <= 0 || (win != null && win !== i)) e = "lose";
+        else if (f.hit > 0) e = "hit";
+        else if (win === i) e = "win";
+        else if ((aimIdx === 1 - i && !busy) || nearShot(st.proj || [], t, i)) e = "scared";
+        else if (aimIdx === i) e = t.rage ? "rage" : "aim";
+        exprNow[i] = e;
+      }
+    }
+    function faceOf(idx, e) {
+      if (e === "idle") return fx[idx] && fx[idx].blink < 0.12 && !calm() ? "blink" : "idle";
+      if (e === "scared") return "worry";
+      if (e === "rage") return "aim";
+      return e;
+    }
 
-    var TS = 0.56, HK = 1; // kreslíme o něco větší než zásahová plocha enginu (±11 px), aby tank byl čitelný na telefonu
+    /* ---------------- tanky ---------------- */
+    function slopeAt(h, x) { var a = H - h[clamp(Math.round(x) - 16, 0, W - 1)], b = H - h[clamp(Math.round(x) + 16, 0, W - 1)]; return clamp(Math.atan2(b - a, 32), -0.42, 0.42); }
+
+    function tankScale() { /* trup tanku = hitbox z enginu (RULES.tankHalfW x tankH, v svetovych px); hlaven, antena a ocasy celenky smi presahovat */
+      var R = (window.TankEngine && window.TankEngine.RULES) || {}, hw = R.tankHalfW || 20, th = R.tankH || 26;
+      return Math.min(2 * hw / 102, th / 62);
+    }
+    var TS = tankScale(), HK = 1; // TS = svetove px na jednotku tanku (tank je 100 jednotek siroky)
+    function poseOf(t, ang, h) { // flip podle hlavne, lokalni uhel hlavne vykompenzovany o naklon terenu
+      var tilt = h ? slopeAt(h, t.x) : 0, a = ang == null ? 50 : ang, flip = a > 90 ? -1 : 1;
+      var la = flip > 0 ? a + tilt / DEG : 180 - a - tilt / DEG;
+      return { tilt: tilt, flip: flip, la: la };
+    }
+    function pivotOf(t, ang, h) {
+      var S = shapes()[t.color === 1 ? 1 : 0], ps = poseOf(t, ang, h), px = 10 * ps.flip * TS, py = (S.top + 13) * TS, cs = Math.cos(ps.tilt), sn = Math.sin(ps.tilt);
+      return { x: t.x + px * cs - py * sn, y: t.y + px * sn + py * cs };
+    }
     function drawTank(t, idx, o) {
-      var f = fx[idx], pal = (!t.alive || t.hp <= 0) ? DEAD : PAL[t.color === 1 ? 1 : 0], dead = pal === DEAD;
-      var tilt = o.h ? slopeAt(o.h, t.x) : 0, cs = Math.cos(tilt), sn = Math.sin(tilt);
-      var ang = o.angle == null ? (idx === 0 ? 50 : 130) : o.angle, ar = ang * Math.PI / 180;
-      if (dead) ar = idx === 0 ? -0.3 : Math.PI + 0.3;
-      var hurt = f.hit > 0, bob = o.active && !dead ? Math.sin(time * 3.2) * 0.9 : 0, lean = hurt ? Math.sin(time * 60) * 1.6 : 0;
-      var hpPct = t.hp / (t.maxHp || 100), low = hpPct < .35;
-      ctx.save(); ctx.globalAlpha = o.alpha == null ? 1 : o.alpha;
-      ctx.translate(t.x, t.y); ctx.scale(TS, TS);
-      // kontaktní stín
-      ctx.fillStyle = "rgba(25,8,25,.3)"; ctx.beginPath(); ctx.ellipse(0, 2, 29, 5, 0, 0, TAU); ctx.fill();
-      ctx.save(); ctx.rotate(tilt); ctx.translate(lean, -1 + bob * .4);
-      // anténa s praporkem
-      ctx.strokeStyle = INK; ctx.lineWidth = 2.2; ctx.lineCap = "round"; ctx.beginPath();
-      if (!dead) {
-        ctx.moveTo(-17, -22); ctx.lineTo(-20.5, -43); ctx.stroke();
-        var fl = Math.sin(time * 6 + idx) * 2.6;
-        ctx.fillStyle = pal.flag; ctx.beginPath(); ctx.moveTo(-20.5, -43); ctx.quadraticCurveTo(-11, -46 + fl, -3, -40 + fl); ctx.quadraticCurveTo(-11, -39 + fl * .6, -20.2, -36); ctx.closePath(); ctx.fill();
-      } else { ctx.moveTo(-17, -22); ctx.quadraticCurveTo(-23, -33, -31, -30); ctx.stroke(); }
-      // pásy (vrstva papíru: tmavý podklad, pak světlejší)
-      ctx.fillStyle = "#2c1a2f"; rr(ctx, -27, -12, 54, 13.5, 6.75); ctx.fill();
-      ctx.fillStyle = "#4a2f45"; rr(ctx, -27, -13, 54, 12.6, 6.3); ctx.fill();
-      ctx.fillStyle = "rgba(255,240,220,.14)"; rr(ctx, -22, -12, 44, 2.6, 1.3); ctx.fill();
-      for (var wi = 0; wi < 4; wi++) {
-        var wx = -18.5 + wi * 12.3, wr = f.wheel;
-        ctx.fillStyle = "#2c1a2f"; ctx.beginPath(); ctx.arc(wx, -5.4, 4.9, 0, TAU); ctx.fill();
-        ctx.fillStyle = "#f3dcb2"; ctx.beginPath(); ctx.arc(wx, -5.9, 4.1, 0, TAU); ctx.fill();
-        ctx.strokeStyle = "#a07a58"; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.moveTo(wx + Math.cos(wr) * 3.2, -5.9 + Math.sin(wr) * 3.2); ctx.lineTo(wx - Math.cos(wr) * 3.2, -5.9 - Math.sin(wr) * 3.2); ctx.stroke();
-        ctx.fillStyle = "#a07a58"; ctx.beginPath(); ctx.arc(wx, -5.9, 1.2, 0, TAU); ctx.fill();
-      }
-      // tělo
-      var bodyC = hurt ? mix(pal.body, "#ffffff", .5) : pal.body, lightC = hurt ? mix(pal.light, "#ffffff", .5) : pal.light;
-      ctx.fillStyle = pal.deep; rr(ctx, -23, -24, 46, 14.5, 7); ctx.fill();
-      ctx.fillStyle = bodyC; rr(ctx, -23, -25, 46, 13.6, 6.8); ctx.fill();
-      ctx.strokeStyle = pal.light; ctx.lineWidth = 2.4; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(-18, -21.8); ctx.lineTo(12, -21.8); ctx.stroke();
-      ctx.fillStyle = pal.dark; [-15, 0, 15].forEach(function (x) { ctx.beginPath(); ctx.arc(x, -15.2, 1.6, 0, TAU); ctx.fill(); });
+      var f = fx[idx], style = t.color === 1 ? 1 : 0, dead = t.alive === false || t.hp <= 0;
+      var ang = o.angle == null ? (idx === 0 ? 50 : 130) : o.angle, ps = poseOf(t, ang, o.h);
+      var la = dead ? 4 : ps.la, e = o.expr || exprNow[idx] || "idle", face = faceOf(idx, e), still = calm();
+      var bob = o.active && !dead && !still ? Math.sin(time * 3.2) * 1.4 : 0;
+      var shk = e === "hit" && !still ? Math.sin(time * 55) * 1.8 * Math.min(1, f.hit / 0.4) : 0;
+      var ol = LOOK.outlinePx / (TS * scale);
+      ctx.save(); if (o.alpha != null) ctx.globalAlpha = o.alpha;
+      ctx.translate(t.x, t.y); ctx.rotate(ps.tilt); ctx.scale(TS * ps.flip, TS);
+      ctx.translate(shk, bob);
+      if (e === "hit") ctx.rotate(-8 * DEG);
+      drawTankShape(ctx, { style: style, cos: cosTier[style], pal: palFor(style, dead), face: face, la: la, ol: ol, t: time + idx * 1.3, still: still, recoil: f.recoil, wheel: f.wheel, sway: still ? 0 : Math.sin(time * 2.6 + idx) * 2.2 });
       ctx.restore();
-      // hlaveň: pivot ve středu věže, úhel absolutní (0 = doprava, 90 = nahoru)
-      var px = 23 * sn, py = -23 * cs + bob * .4 - 1;
-      ctx.save(); ctx.translate(px + lean, py); ctx.rotate(-ar);
-      var rec = f.recoil * 5;
-      ctx.fillStyle = "#3a2233"; rr(ctx, 4 - rec, -4.8, 29, 9.6, 4.2); ctx.fill();
-      ctx.fillStyle = dead ? "#8a7a86" : MUSTARD; rr(ctx, 4 - rec, -5.8, 29, 9.4, 4.2); ctx.fill();
-      ctx.fillStyle = "rgba(255,255,255,.5)"; rr(ctx, 8 - rec, -4.6, 17, 2.2, 1.1); ctx.fill();
-      ctx.fillStyle = "#3a2233"; rr(ctx, 26 - rec, -7.4, 7, 13.2, 3.2); ctx.fill();
-      ctx.fillStyle = dead ? "#6e5f6c" : "#e0a43c"; rr(ctx, 26 - rec, -8.4, 7, 12.8, 3.2); ctx.fill();
-      ctx.restore();
-      // věž
-      ctx.save(); ctx.rotate(tilt); ctx.translate(lean, -1 + bob * .4);
-      ctx.fillStyle = pal.deep; ctx.beginPath(); ctx.arc(0, -22, 13.4, 0, TAU); ctx.fill();
-      ctx.fillStyle = bodyC; ctx.beginPath(); ctx.arc(0, -23, 13.4, 0, TAU); ctx.fill();
-      ctx.fillStyle = lightC; ctx.beginPath(); ctx.arc(0, -23, 13.4, Math.PI * 1.02, Math.PI * 1.98); ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = "rgba(255,255,255,.45)"; ctx.lineWidth = 2; ctx.lineCap = "round"; ctx.beginPath(); ctx.arc(0, -23, 10.4, Math.PI * 1.12, Math.PI * 1.45); ctx.stroke();
-      // obličej
-      var lx = Math.cos(ar), ly = -Math.sin(ar), blink = f.blink < .12 && !dead;
-      var eyes = [[-5.2, -24.6], [5.4, -24.6]];
-      if (dead) {
-        ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.lineCap = "round";
-        eyes.forEach(function (e) { ctx.beginPath(); ctx.moveTo(e[0] - 2.8, e[1] - 2.8); ctx.lineTo(e[0] + 2.8, e[1] + 2.8); ctx.moveTo(e[0] + 2.8, e[1] - 2.8); ctx.lineTo(e[0] - 2.8, e[1] + 2.8); ctx.stroke(); });
-      } else {
-        eyes.forEach(function (e) {
-          ctx.fillStyle = INK; ctx.beginPath(); ctx.ellipse(e[0], e[1] + .8, 5.2, blink ? 1 : 5.4, 0, 0, TAU); ctx.fill();
-          ctx.fillStyle = "#fff6e4"; ctx.beginPath(); ctx.ellipse(e[0], e[1], 4.9, blink ? .9 : 5.1, 0, 0, TAU); ctx.fill();
-          if (!blink) { ctx.fillStyle = INK; ctx.beginPath(); ctx.arc(e[0] + lx * 1.7, e[1] + ly * 1.7 + (hurt ? 1 : 0), 2.5, 0, TAU); ctx.fill(); ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(e[0] + lx * 1.7 + .9, e[1] + ly * 1.7 - .9, .9, 0, TAU); ctx.fill(); }
-        });
-        // obočí: odhodlané (aktivní), ustaraná (málo HP / zásah)
-        var mood = hurt || low ? -1 : (o.active ? 1 : 0), lift = mood * 1.8;
-        ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.lineCap = "round";
-        [[-1, eyes[0]], [1, eyes[1]]].forEach(function (p) {
-          var s = p[0], e = p[1];
-          ctx.beginPath(); ctx.moveTo(e[0] + 4.4 * s, e[1] - 7 - lift * .5); ctx.lineTo(e[0] - 3.8 * s, e[1] - 7 + lift * .5); ctx.stroke();
-        });
-      }
-      // pusa
-      ctx.strokeStyle = INK; ctx.fillStyle = INK; ctx.lineWidth = 2; ctx.lineCap = "round";
-      if (dead) { ctx.beginPath(); ctx.moveTo(-3.6, -15.8); ctx.quadraticCurveTo(0, -18.8, 3.6, -15.8); ctx.stroke(); }
-      else if (hurt || f.mouth > 0) { ctx.beginPath(); ctx.ellipse(0, -16.2, 2.6, hurt ? 2.8 : 2.3, 0, 0, TAU); ctx.fill(); }
-      else if (low) { ctx.beginPath(); ctx.moveTo(-3.6, -15.4); ctx.quadraticCurveTo(0, -18, 3.6, -15.4); ctx.stroke(); }
-      else { ctx.beginPath(); ctx.moveTo(-3.8, -17); ctx.quadraticCurveTo(0, -13.6, 3.8, -17); ctx.stroke(); }
-      if (!dead) { ctx.fillStyle = "rgba(255,170,160,.55)"; ctx.beginPath(); ctx.arc(-9.6, -18.4, 2.3, 0, TAU); ctx.arc(9.8, -18.4, 2.3, 0, TAU); ctx.fill(); }
-      if (!dead && low) { ctx.fillStyle = "#bfe9f2"; ctx.beginPath(); ctx.moveTo(14, -34); ctx.quadraticCurveTo(17.5, -29, 14, -26.8); ctx.quadraticCurveTo(10.5, -29, 14, -34); ctx.fill(); }
-      ctx.restore();
-      // štít
-      if (t.shield > 0 && !dead) {
-        var pulse = 1 + Math.sin(time * 4) * .03 + f.shieldPing * .08;
-        ctx.save(); ctx.translate(0, -20); ctx.scale(pulse, pulse);
-        ctx.fillStyle = "rgba(159,230,233,.18)"; ctx.beginPath(); ctx.arc(0, 0, 41, 0, TAU); ctx.fill();
-        ctx.strokeStyle = "rgba(220,250,250,.92)"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, 41, 0, TAU); ctx.stroke();
-        ctx.strokeStyle = "rgba(255,255,255,.75)"; ctx.lineWidth = 3.4; ctx.lineCap = "round"; ctx.beginPath(); ctx.arc(0, 0, 33, Math.PI * 1.15, Math.PI * 1.5); ctx.stroke();
+      if (t.rage && !dead) { // vztek: červená žilka a drobná pára z tanku
+        var vx = t.x + 16 * TS * ps.flip * 0.8, vy = t.y - (style ? 36 : 31), vr = 4 / scale * 1.4 + 1.6;
+        ctx.save(); ctx.strokeStyle = LOOK.boomRing; ctx.lineWidth = 2.2 / scale; ctx.lineCap = "round";
+        for (var q = 0; q < 4; q++) { var a0 = q * TAU / 4 + 0.35; ctx.beginPath(); ctx.arc(vx + Math.cos(a0 + 0.8) * vr, vy + Math.sin(a0 + 0.8) * vr, vr, a0 + Math.PI * 0.55, a0 + Math.PI * 1.45); ctx.stroke(); }
         ctx.restore();
+        if (!still && Math.random() < 0.18) puff(t.x + (Math.random() - 0.5) * 18 * TS, t.y - (style ? 30 : 26), { r: 1.7 + Math.random() * 1.2, vx: (Math.random() - 0.5) * 12, vy: -22 - Math.random() * 14, max: 0.7, gr: 0, wind: 0, col: LOOK.boomRing, a: 0.9 });
       }
-      ctx.restore();
+      if (t.shield > 0 && !dead) { // štít: plochý kruh 3 px, výplň 15 %
+        var pulse = 1 + (still ? 0 : Math.sin(time * 4) * 0.025) + f.shieldPing * 0.08, R = 66 * TS * pulse, cy = t.y - 46 * TS;
+        ctx.fillStyle = rgba(LOOK.sweat, 0.15); ctx.beginPath(); ctx.arc(t.x, cy, R, 0, TAU); ctx.fill();
+        ctx.strokeStyle = LOOK.sweat; ctx.lineWidth = 3 / scale; ctx.stroke();
+      }
     }
 
     /* ---------------- frame ---------------- */
     function toWorld(cx, cy) { var r = canvas.getBoundingClientRect(); return { x: (cx - r.left - ox) / scale, y: (cy - r.top - oy) / scale }; }
     function toScreen(x, y) { return { x: ox + x * scale, y: oy + y * scale }; }
-
     function projPx(p) { return SUBPX ? { x: p.x / 100, y: p.y / 100 } : { x: p.x, y: p.y }; }
 
-    function drawProjectile(p, dt) {
+    function drawProjectile(p) {
       var pp = projPx(p), look = WEAPON_LOOK[p.w] || DEFAULT_LOOK, id = p.id == null ? p.w : p.id;
       var tr = trails[id] || (trails[id] = { pts: [], look: look, seen: time }); tr.seen = time;
       var last = tr.pts[tr.pts.length - 1];
       if (!last || Math.abs(last.x - pp.x) + Math.abs(last.y - pp.y) > 3) { tr.pts.push({ x: pp.x, y: pp.y, t: time }); if (tr.pts.length > 46) tr.pts.shift(); }
       var vx = SUBPX ? p.vx / 100 : p.vx, vy = SUBPX ? p.vy / 100 : p.vy, ang = Math.atan2(vy, vx);
-      ctx.save(); ctx.translate(pp.x, pp.y);
-      var r = look.r;
-      ctx.fillStyle = "rgba(25,8,25,.28)"; ctx.beginPath(); ctx.arc(1.4, 2, r, 0, TAU); ctx.fill();
+      var rk = clamp(1 / scale, 1, 1.8), r = look.r * rk, lw = LOOK.projOutlinePx / scale;
+      ctx.save(); ctx.translate(pp.x, pp.y); ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.strokeStyle = INK; ctx.lineWidth = lw;
       if (look.cone) {
-        ctx.rotate(ang); ctx.fillStyle = "#c58a2c"; ctx.beginPath(); ctx.moveTo(10, 0); ctx.lineTo(-7, -5.6); ctx.lineTo(-7, 5.6); ctx.closePath(); ctx.fill();
-        ctx.fillStyle = look.c; ctx.beginPath(); ctx.moveTo(10, 0); ctx.lineTo(-7, -5); ctx.lineTo(-7, 3.4); ctx.closePath(); ctx.fill();
-        ctx.strokeStyle = INK; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(-2, -3.6); ctx.lineTo(2, 2.4); ctx.moveTo(-6, -3.2); ctx.lineTo(-2, 3.4); ctx.stroke();
+        ctx.rotate(ang); ctx.fillStyle = look.c; ctx.beginPath(); ctx.moveTo(r * 2, 0); ctx.lineTo(-r * 1.3, -r * 1.1); ctx.lineTo(-r * 1.3, r * 1.1); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(-r * 0.3, -r * 0.7); ctx.lineTo(r * 0.2, r * 0.5); ctx.moveTo(-r * 1, -r * 0.8); ctx.lineTo(-r * 0.5, r * 0.8); ctx.stroke();
+      } else if (look.feather) { // pírko: plochá tyrkysová šipka-pírko, kymácí se
+        ctx.rotate(ang + (calm() ? 0 : Math.sin(time * 12) * 0.35)); ctx.fillStyle = look.c;
+        ctx.beginPath(); ctx.moveTo(r * 2.2, 0); ctx.quadraticCurveTo(0, -r * 1.3, -r * 2, -r * 0.2); ctx.lineTo(-r * 2, r * 0.2); ctx.quadraticCurveTo(0, r * 1.3, r * 2.2, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(r * 2, 0); ctx.lineTo(-r * 2.6, 0); ctx.stroke();
       } else if (look.wheel) {
-        ctx.rotate(time * 14); ctx.fillStyle = "#c9b08a"; ctx.beginPath(); ctx.arc(0, 0, r + .8, 0, TAU); ctx.fill(); ctx.fillStyle = look.c; ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.fill();
-        ctx.strokeStyle = "#8a6a4a"; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.moveTo(-r, 0); ctx.lineTo(r, 0); ctx.moveTo(0, -r); ctx.lineTo(0, r); ctx.stroke();
+        ctx.rotate(time * 14); ctx.fillStyle = look.c; ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(-r * 0.7, 0); ctx.lineTo(r * 0.7, 0); ctx.moveTo(0, -r * 0.7); ctx.lineTo(0, r * 0.7); ctx.stroke();
       } else if (look.blob) {
-        ctx.rotate(time * 6 + 1); ctx.fillStyle = "#6a3328"; ctx.beginPath();
-        for (var i = 0; i < 7; i++) { var a = i / 7 * TAU, rad = r * (1 + .22 * Math.sin(i * 2.7)); ctx.lineTo(Math.cos(a) * rad, Math.sin(a) * rad + .8); } ctx.fill();
-        ctx.fillStyle = look.c; ctx.beginPath(); for (var j = 0; j < 7; j++) { var a3 = j / 7 * TAU, rad3 = r * (1 + .22 * Math.sin(j * 2.7)); ctx.lineTo(Math.cos(a3) * rad3, Math.sin(a3) * rad3); } ctx.fill();
-        ctx.fillStyle = look.hi; ctx.beginPath(); ctx.arc(-r * .3, -r * .3, r * .3, 0, TAU); ctx.fill();
-      } else if (p.w === "napalm") {
-        var g = ctx.createRadialGradient(0, 0, 1, 0, 0, r * 2.4); g.addColorStop(0, "rgba(255,230,160,.95)"); g.addColorStop(.4, "rgba(255,138,61,.7)"); g.addColorStop(1, "rgba(255,90,40,0)");
-        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, r * 2.4, 0, TAU); ctx.fill();
-        ctx.fillStyle = "#e8543c"; ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.fill(); ctx.fillStyle = look.hi; ctx.beginPath(); ctx.arc(-.8, -.8, r * .55, 0, TAU); ctx.fill();
+        ctx.rotate(time * 6 + 1); ctx.fillStyle = look.c; ctx.beginPath();
+        for (var i = 0; i < 7; i++) { var a = i / 7 * TAU, rad = r * (1 + 0.22 * Math.sin(i * 2.7)); ctx.lineTo(Math.cos(a) * rad, Math.sin(a) * rad); }
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+      } else if (look.fin) {
+        ctx.rotate(ang); ctx.fillStyle = ACC; ctx.beginPath(); ctx.moveTo(-r * 0.6, 0); ctx.lineTo(-r * 1.9, -r * 1.1); ctx.lineTo(-r * 1.9, r * 1.1); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = look.c; ctx.beginPath(); ctx.ellipse(0, 0, r * 1.35, r * 0.85, 0, 0, TAU); ctx.fill(); ctx.stroke();
       } else {
-        ctx.fillStyle = mix(look.c, "#000000", .35); ctx.beginPath(); ctx.arc(0, .8, r, 0, TAU); ctx.fill();
         ctx.fillStyle = look.c; ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.fill();
-        if (look.band) { ctx.save(); ctx.rotate(ang); ctx.fillStyle = look.band; ctx.fillRect(-1.4, -r, 2.8, r * 2); ctx.restore(); }
-        if (look.stripe) { ctx.save(); ctx.rotate(time * 9); ctx.fillStyle = look.stripe; ctx.fillRect(-r, -1.3, r * 2, 2.6); ctx.restore(); }
-        ctx.fillStyle = look.hi; ctx.globalAlpha = .8; ctx.beginPath(); ctx.arc(-r * .32, -r * .35, r * .3, 0, TAU); ctx.fill(); ctx.globalAlpha = 1;
-        if (p.w === "grenade" || p.w === "mirv") { ctx.strokeStyle = INK; ctx.lineWidth = 1.5; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(-Math.cos(ang) * r * .9, -Math.sin(ang) * r * .9 - r * .3); ctx.quadraticCurveTo(-Math.cos(ang) * (r + 3), -Math.sin(ang) * (r + 3) - r, -Math.cos(ang) * (r + 5), -Math.sin(ang) * (r + 5) - r - 1); ctx.stroke(); ctx.fillStyle = MUSTARD; ctx.beginPath(); ctx.arc(-Math.cos(ang) * (r + 5), -Math.sin(ang) * (r + 5) - r - 1, 1.8 + Math.sin(time * 40) * .6, 0, TAU); ctx.fill(); }
+        if (look.core) { ctx.fillStyle = look.core; ctx.beginPath(); ctx.arc(0, 0, r * 0.5, 0, TAU); ctx.fill(); }
+        if (look.band || look.stripe || look.dots) {
+          ctx.save(); ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.clip();
+          if (look.band) { ctx.rotate(ang); ctx.fillStyle = look.band; ctx.fillRect(-r * 0.28, -r, r * 0.56, r * 2); }
+          if (look.stripe) { ctx.rotate(time * 9); ctx.fillStyle = look.stripe; ctx.fillRect(-r, -r * 0.26, r * 2, r * 0.52); }
+          if (look.dots) { ctx.rotate(time * 7); look.dots.forEach(function (dc, k) { var a2 = k / 3 * TAU; ctx.fillStyle = dc; ctx.beginPath(); ctx.arc(Math.cos(a2) * r * 0.45, Math.sin(a2) * r * 0.45, r * 0.3, 0, TAU); ctx.fill(); }); }
+          ctx.restore();
+        }
+        ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.stroke();
+        if (look.fuse) { var fa = ang + Math.PI, fx2 = Math.cos(fa) * r * 1.5, fy2 = Math.sin(fa) * r * 1.5 - r * 0.6; ctx.fillStyle = ACC; ctx.beginPath(); ctx.arc(fx2, fy2, r * 0.32 + (calm() ? 0 : Math.sin(time * 40) * r * 0.1), 0, TAU); ctx.fill(); }
       }
       ctx.restore();
     }
 
-    function drawTrails(dt) {
+    function drawTrails() {
       var ids = Object.keys(trails);
       for (var k = 0; k < ids.length; k++) {
         var tr = trails[ids[k]], look = tr.look, kind = look.trail;
         for (var i = 0; i < tr.pts.length; i++) {
-          var p = tr.pts[i], age = time - p.t, life = kind === "fire" ? .45 : .9;
+          var p = tr.pts[i], age = time - p.t, life = kind === "fire" ? 0.45 : 0.9;
           if (age > life) continue;
           var u = age / life;
-          if (kind === "fire") { ctx.fillStyle = "rgba(255," + Math.round(200 - u * 120) + ",70," + (.8 * (1 - u)) + ")"; ctx.beginPath(); ctx.arc(p.x, p.y, 4.5 * (1 - u) + 1, 0, TAU); ctx.fill(); }
-          else if (kind === "dust") { ctx.fillStyle = "rgba(214,167,126," + (.45 * (1 - u)) + ")"; ctx.beginPath(); ctx.arc(p.x, p.y, 2 + u * 4, 0, TAU); ctx.fill(); }
-          else { ctx.fillStyle = "rgba(255,241,214," + (.5 * (1 - u)) + ")"; ctx.beginPath(); ctx.arc(p.x, p.y - u * 4, 2 + u * 3.6, 0, TAU); ctx.fill(); ctx.fillStyle = "rgba(60,25,50," + (.14 * (1 - u)) + ")"; ctx.beginPath(); ctx.arc(p.x + 1, p.y - u * 4 + 1.6, 1.6 + u * 2.4, 0, TAU); ctx.fill(); }
+          if (kind === "fire") { ctx.fillStyle = u < 0.4 ? LOOK.fire[2] : LOOK.fire[0]; ctx.globalAlpha = 0.85 * (1 - u); ctx.beginPath(); ctx.arc(p.x, p.y, 4 * (1 - u) + 1, 0, TAU); ctx.fill(); }
+          else if (kind === "dust") { ctx.fillStyle = LOOK.dust; ctx.globalAlpha = 0.6 * (1 - u); ctx.beginPath(); ctx.arc(p.x, p.y, 2 + u * 3, 0, TAU); ctx.fill(); }
+          else if (kind === "confetti") { ctx.fillStyle = look.dots[i % 3]; ctx.globalAlpha = 1 - u; ctx.fillRect(p.x - 1.6, p.y - 1.6 + u * 6, 3.2, 3.2); }
+          else { ctx.fillStyle = LOOK.smoke; ctx.globalAlpha = 0.75 * (1 - u); ctx.beginPath(); ctx.arc(p.x, p.y - u * 4, 2 + u * 3, 0, TAU); ctx.fill(); }
         }
+        ctx.globalAlpha = 1;
         if (time - tr.seen > 1) delete trails[ids[k]];
       }
     }
@@ -545,33 +694,32 @@
     function drawFires(list) {
       for (var i = 0; i < list.length; i++) {
         var f = list[i], fxp = SUBPX && f.x > W * 2 ? f.x / 100 : f.x, fyp = SUBPX && f.y > H * 2 ? f.y / 100 : f.y;
-        var k = fr(i * 3.7 + Math.floor(fxp)), sz = f.t != null ? clamp(f.t / 40, .5, 1) : 1;
-        var wob = Math.sin(time * 11 + k * 6) * 1.4;
+        var k = fr(i * 3.7 + Math.floor(fxp)), sz = f.t != null ? clamp(f.t / 40, 0.5, 1) : 1, mv = calm() ? 0 : 1;
+        var wob = Math.sin(time * 11 + k * 6) * 1.4 * mv;
         ctx.save(); ctx.translate(fxp, fyp);
-        ctx.fillStyle = "rgba(255,120,50,.25)"; ctx.beginPath(); ctx.ellipse(0, 0, 9 * sz, 3.4, 0, 0, TAU); ctx.fill();
-        [[0, 12, "#e8543c"], [0, 9, "#ff8a3d"], [0, 5.5, "#f6c76a"]].forEach(function (d, n) {
-          var hh = (d[1] + Math.sin(time * 13 + k * 5 + n) * 2.2) * sz, ww = (6 - n * 1.3) * sz;
-          ctx.fillStyle = d[2]; ctx.beginPath(); ctx.moveTo(-ww, 0); ctx.quadraticCurveTo(-ww * .9, -hh * .6, wob * (n ? .5 : 1), -hh); ctx.quadraticCurveTo(ww * .9, -hh * .6, ww, 0); ctx.closePath(); ctx.fill();
-        });
+        for (var n = 0; n < 3; n++) {
+          var hh = ([12, 9, 5.5][n] + Math.sin(time * 13 + k * 5 + n) * 2.2 * mv) * sz, ww = (6 - n * 1.3) * sz;
+          ctx.fillStyle = LOOK.fire[n]; ctx.beginPath(); ctx.moveTo(-ww, 0); ctx.quadraticCurveTo(-ww * 0.9, -hh * 0.6, wob * (n ? 0.5 : 1), -hh); ctx.quadraticCurveTo(ww * 0.9, -hh * 0.6, ww, 0); ctx.closePath(); ctx.fill();
+        }
         ctx.restore();
-        if (!calm() && Math.random() < .05) P({ k: "ember", x: fxp, y: fyp - 8, vx: (Math.random() - .5) * 20, vy: -30 - Math.random() * 30, r: 1.6, life: 0, max: .8 });
+        if (!calm() && Math.random() < 0.05) P({ k: "ember", x: fxp, y: fyp - 8, vx: (Math.random() - 0.5) * 20, vy: -30 - Math.random() * 30, r: 1.6, life: 0, max: 0.8 });
       }
     }
 
-    function drawPlane(pl) {
-      ctx.save(); ctx.translate(pl.x, pl.y + Math.sin(pl.life * 5) * 3);
-      ctx.fillStyle = "rgba(25,8,25,.25)"; ctx.beginPath(); ctx.ellipse(3, 14, 24, 3, 0, 0, TAU); ctx.fill();
-      ctx.fillStyle = "#c8402c"; ctx.beginPath(); ctx.moveTo(30, 0); ctx.lineTo(-24, -11); ctx.lineTo(-14, 0); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = TOMATO; ctx.beginPath(); ctx.moveTo(30, 0); ctx.lineTo(-24, -11); ctx.lineTo(-8, -1); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = CREAM; ctx.beginPath(); ctx.moveTo(30, 0); ctx.lineTo(-14, 0); ctx.lineTo(-24, 9); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = "#e9c9a8"; ctx.beginPath(); ctx.moveTo(-14, 0); ctx.lineTo(-8, -1); ctx.lineTo(-24, 9); ctx.closePath(); ctx.fill();
+    function drawPlane(pl) { // plochý letoun s obrysem
+      var lw = 2 / scale;
+      ctx.save(); ctx.translate(pl.x, pl.y + (calm() ? 0 : Math.sin(pl.life * 5) * 3)); ctx.lineJoin = "round"; ctx.strokeStyle = INK; ctx.lineWidth = lw;
+      ctx.fillStyle = LOOK.players[0].shade; ctx.beginPath(); ctx.moveTo(-20, -2); ctx.lineTo(-30, -16); ctx.lineTo(-22, -16); ctx.lineTo(-10, -2); ctx.closePath(); ctx.fill(); ctx.stroke();
+      rr(ctx, -28, -6, 58, 13, 6.5); ctx.fillStyle = LOOK.players[0].main; ctx.fill(); ctx.stroke();
+      ctx.fillStyle = LOOK.players[0].shade; ctx.beginPath(); ctx.moveTo(-6, 2); ctx.lineTo(8, 2); ctx.lineTo(-4, 14); ctx.lineTo(-14, 14); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = CREAM; ctx.beginPath(); ctx.arc(16, -1, 3.4, 0, TAU); ctx.fill(); ctx.stroke();
       ctx.restore();
-      if (!calm() && Math.random() < .6) puff(pl.x - 24, pl.y, { r: 4, max: .9, vx: -10, gr: 6, col: "#fff1d6", a: .8 });
+      if (!calm() && Math.random() < 0.5) puff(pl.x - 30, pl.y, { r: 4, max: 0.9, vx: -10, gr: 6, a: 0.7 });
     }
 
-    function drawStarShape(c, x, y, r, rot, pts, inner, jit, sd) {
+    function drawStarShape(c, x, y, r, rot, pts, inner) {
       c.beginPath();
-      for (var i = 0; i < pts * 2; i++) { var a = rot + i / (pts * 2) * TAU, rad = (i % 2 ? r * inner : r) * (1 + (jit ? (fr(sd + i) - .5) * jit : 0)); if (i) c.lineTo(x + Math.cos(a) * rad, y + Math.sin(a) * rad); else c.moveTo(x + Math.cos(a) * rad, y + Math.sin(a) * rad); }
+      for (var i = 0; i < pts * 2; i++) { var a = rot + i / (pts * 2) * TAU, rad = i % 2 ? r * inner : r; if (i) c.lineTo(x + Math.cos(a) * rad, y + Math.sin(a) * rad); else c.moveTo(x + Math.cos(a) * rad, y + Math.sin(a) * rad); }
       c.closePath();
     }
 
@@ -582,53 +730,46 @@
         if (p.life >= p.max) { parts.splice(i, 1); continue; }
         var u = p.life / p.max;
         if (p.k === "puff") {
-          p.vx += wf * (p.wind || 0) * dt; p.vy -= p.gr * dt * .3; p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= .985; p.vy *= .985;
-          var r = p.r * (.6 + u * .9), a = p.a * (1 - u * u);
-          ctx.globalAlpha = a * .5; ctx.fillStyle = "#4a2f45"; ctx.beginPath(); ctx.arc(p.x + 1.6, p.y + 2.2, r, 0, TAU); ctx.fill();
-          ctx.globalAlpha = a; ctx.fillStyle = p.col; ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, TAU); ctx.fill();
-          ctx.globalAlpha = a * .5; ctx.fillStyle = "#fffaf0"; ctx.beginPath(); ctx.arc(p.x - r * .28, p.y - r * .3, r * .45, 0, TAU); ctx.fill(); ctx.globalAlpha = 1;
+          p.vx += wf * (p.wind || 0) * dt; p.vy -= p.gr * dt * 0.3; p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.985; p.vy *= 0.985;
+          ctx.globalAlpha = p.a * (1 - u * u); ctx.fillStyle = p.col; ctx.beginPath(); ctx.arc(p.x, p.y, p.r * (0.6 + u * 0.9), 0, TAU); ctx.fill(); ctx.globalAlpha = 1;
         } else if (p.k === "chunk") {
-          p.vy += 520 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt; p.vx *= .995;
-          var ca = u > .7 ? 1 - (u - .7) / .3 : 1;
-          ctx.save(); ctx.globalAlpha = ca; ctx.translate(p.x, p.y); ctx.rotate(p.rot);
-          ctx.fillStyle = "rgba(25,8,25,.35)"; drawChunkPoly(p, 1.2, 1.6); ctx.fill();
-          ctx.fillStyle = p.col; drawChunkPoly(p, 0, 0); ctx.fill(); ctx.restore();
+          p.vy += 520 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt; p.vx *= 0.995;
+          ctx.save(); ctx.globalAlpha = u > 0.7 ? 1 - (u - 0.7) / 0.3 : 1; ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.fillStyle = p.col;
+          ctx.lineJoin = "round"; ctx.lineWidth = LOOK.projOutlinePx / scale; ctx.strokeStyle = INK;
+          if (p.tri) { ctx.beginPath(); ctx.moveTo(0, -p.r); ctx.lineTo(p.r * 0.9, p.r * 0.7); ctx.lineTo(-p.r * 0.9, p.r * 0.7); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+          else { rr(ctx, -p.r * 0.8, -p.r * 0.8, p.r * 1.6, p.r * 1.6, p.r * 0.45); ctx.fill(); ctx.stroke(); }
+          ctx.restore();
         } else if (p.k === "spark") {
           p.vy += 300 * dt; p.x += p.vx * dt; p.y += p.vy * dt;
-          ctx.globalAlpha = 1 - u; ctx.strokeStyle = p.col; ctx.lineWidth = p.r; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.vx * .035, p.y - p.vy * .035); ctx.stroke(); ctx.globalAlpha = 1;
+          ctx.globalAlpha = 1 - u; ctx.strokeStyle = p.col; ctx.lineWidth = p.r; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.vx * 0.035, p.y - p.vy * 0.035); ctx.stroke(); ctx.globalAlpha = 1;
+        } else if (p.k === "blast") { // plochý kruh: prstenec + jádro, rychle se zvětší a zmizí
+          var eb = 1 - Math.pow(1 - Math.min(1, u * 1.6), 3), rb = p.r * (0.4 + 0.6 * eb), olw = LOOK.projOutlinePx / scale;
+          if (p.life < 0.045) { ctx.fillStyle = "#FFFFFF"; ctx.beginPath(); ctx.arc(p.x, p.y, p.r * 1.15, 0, TAU); ctx.fill(); continue; } // jednoframový bílý záblesk
+          ctx.globalAlpha = u < 0.6 ? 1 : 1 - (u - 0.6) / 0.4; ctx.lineWidth = olw; ctx.strokeStyle = INK; ctx.lineJoin = "round";
+          ctx.fillStyle = p.ring; ctx.beginPath(); ctx.arc(p.x, p.y, rb, 0, TAU); ctx.fill(); ctx.stroke();
+          ctx.fillStyle = p.core; ctx.beginPath(); ctx.arc(p.x, p.y, rb * (0.66 - 0.22 * u), 0, TAU); ctx.fill(); ctx.stroke();
+          ctx.globalAlpha = 1;
         } else if (p.k === "ring") {
           var rr2 = lerp(p.r0, p.r1, 1 - Math.pow(1 - u, 3));
-          ctx.globalAlpha = (1 - u) * .95; ctx.strokeStyle = p.col; ctx.lineWidth = Math.max(.8, p.w * (1 - u)); ctx.beginPath(); ctx.arc(p.x, p.y, rr2, 0, TAU); ctx.stroke(); ctx.globalAlpha = 1;
-        } else if (p.k === "burst") {
-          var e = 1 - Math.pow(1 - Math.min(1, u * 2.4), 3), sc = p.r * (.25 + .85 * e), al = u < .55 ? 1 : 1 - (u - .55) / .45;
-          ctx.save(); ctx.globalAlpha = al;
-          ctx.fillStyle = "rgba(25,8,25,.3)"; drawStarShape(ctx, p.x + 2, p.y + 3, sc, p.rot, p.pts, .52, .35, p.sd); ctx.fill();
-          ctx.fillStyle = p.cols[0]; drawStarShape(ctx, p.x, p.y, sc, p.rot, p.pts, .52, .35, p.sd); ctx.fill();
-          ctx.fillStyle = p.cols[1]; drawStarShape(ctx, p.x, p.y, sc * .68, p.rot + .12, p.pts, .55, .3, p.sd + 7); ctx.fill();
-          ctx.fillStyle = p.cols[2]; drawStarShape(ctx, p.x, p.y, sc * .36, p.rot + .25, p.pts, .6, .2, p.sd + 13); ctx.fill();
-          ctx.restore();
+          ctx.globalAlpha = (1 - u) * 0.95; ctx.strokeStyle = p.col; ctx.lineWidth = Math.max(0.8, p.w * (1 - u)); ctx.beginPath(); ctx.arc(p.x, p.y, rr2, 0, TAU); ctx.stroke(); ctx.globalAlpha = 1;
         } else if (p.k === "ember") {
-          p.vy -= 20 * dt; p.vx += wf * .3 * dt; p.x += p.vx * dt; p.y += p.vy * dt;
-          ctx.globalAlpha = 1 - u; ctx.fillStyle = u < .5 ? MUSTARD : "#ff8a3d"; ctx.beginPath(); ctx.arc(p.x, p.y, p.r * (1 - u * .6), 0, TAU); ctx.fill(); ctx.globalAlpha = 1;
+          p.vy -= 20 * dt; p.vx += wf * 0.3 * dt; p.x += p.vx * dt; p.y += p.vy * dt;
+          ctx.globalAlpha = 1 - u; ctx.fillStyle = u < 0.5 ? LOOK.fire[2] : LOOK.fire[1]; ctx.beginPath(); ctx.arc(p.x, p.y, p.r * (1 - u * 0.6), 0, TAU); ctx.fill(); ctx.globalAlpha = 1;
         } else if (p.k === "star") {
           p.x += p.vx * dt; p.y += p.vy * dt; p.rot += dt * 3;
-          ctx.globalAlpha = 1 - u; ctx.fillStyle = p.col; drawStarShape(ctx, p.x, p.y, p.r * (1 - u * .4), p.rot, 4, .32, 0, 0); ctx.fill(); ctx.globalAlpha = 1;
+          ctx.globalAlpha = 1 - u; ctx.fillStyle = p.col; drawStarShape(ctx, p.x, p.y, p.r * (1 - u * 0.4), p.rot, 4, 0.32); ctx.fill(); ctx.globalAlpha = 1;
         } else if (p.k === "confetti") {
-          p.vy += 16 * dt; p.vy = Math.min(p.vy, 90); p.x += (p.vx + Math.sin(time * 3 + p.ph) * 30 + wf * 4) * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
-          ctx.save(); ctx.globalAlpha = u > .8 ? 1 - (u - .8) / .2 : 1; ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.scale(1, Math.abs(Math.cos(p.rot * 1.3)) * .8 + .2);
+          if (p.vy < 0) p.vy += 320 * dt; else p.vy = Math.min(p.vy + 16 * dt, 90);
+          p.x += (p.vx + Math.sin(time * 3 + p.ph) * 30 + wf * 4) * dt; p.y += p.vy * dt; p.rot += p.vr * dt; p.vx *= 0.99;
+          ctx.save(); ctx.globalAlpha = u > 0.8 ? 1 - (u - 0.8) / 0.2 : 1; ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.scale(1, Math.abs(Math.cos(p.rot * 1.3)) * 0.8 + 0.2);
           ctx.fillStyle = p.col; ctx.fillRect(-p.w / 2, -p.hh / 2, p.w, p.hh); ctx.restore();
         }
       }
     }
-    function drawChunkPoly(p, dx, dy) {
-      ctx.beginPath();
-      for (var i = 0; i < p.n; i++) { var a = i / p.n * TAU, rad = p.r * (.65 + fr(p.sd + i) * .55); ctx.lineTo(Math.cos(a) * rad + dx, Math.sin(a) * rad + dy); }
-      ctx.closePath();
-    }
 
-    function textShadowed(text, x, y, size, col, align) {
-      ctx.font = "400 " + size + "px " + FONT; ctx.textAlign = align || "center"; ctx.textBaseline = "middle";
-      ctx.lineJoin = "round"; ctx.lineWidth = Math.max(3, size * .26); ctx.strokeStyle = "rgba(42,26,46,.92)"; ctx.strokeText(text, x, y);
+    function textOutlined(text, x, y, size, col, align, lw) {
+      ctx.font = "700 " + size + "px " + FONT; ctx.textAlign = align || "center"; ctx.textBaseline = "middle";
+      ctx.lineJoin = "round"; ctx.lineWidth = lw || Math.max(3, size * 0.22); ctx.strokeStyle = INK; ctx.strokeText(text, x, y);
       ctx.fillStyle = col; ctx.fillText(text, x, y);
     }
 
@@ -637,152 +778,240 @@
       words.forEach(function (w) { var t = cur ? cur + " " + w : w; if (ctx.measureText(t).width > maxW && cur) { lines.push(cur); cur = w; } else cur = t; });
       if (cur) lines.push(cur); return lines.slice(0, 3);
     }
+    function flatCard(x, y, w, h, r, fill) { // plochá karta: stín = tentýž tvar o 4 px níž
+      ctx.fillStyle = rgba(INK, LOOK.shadowA); rr(ctx, x, y + LOOK.shadowPx, w, h, r); ctx.fill();
+      ctx.fillStyle = fill || CREAM; rr(ctx, x, y, w, h, r); ctx.fill();
+    }
+
+    /* ---------------- míření (svět) ---------------- */
+    function aimBase(scene, st) {
+      var a = scene.aim, at = st.tanks[a.idx], base = { x: at.x, y: at.y, color: at.color };
+      if (scene.ghost && scene.ghost.idx === a.idx) { base.x = scene.ghost.x; base.y = H - st.h[clamp(Math.round(base.x), 0, W - 1)]; }
+      return base;
+    }
+    function drawZone(scene, st) {
+      if (!scene.zone || !scene.aim || !st.tanks[scene.aim.idx] || st.tanks[scene.aim.idx].alive === false) return;
+      var b = aimBase(scene, st), u = 1 / scale;
+      ctx.save(); ctx.strokeStyle = rgba(INK, LOOK.zoneInkA); ctx.lineWidth = 2 * u; ctx.setLineDash([6 * u, 9 * u]);
+      ctx.beginPath(); ctx.arc(b.x, b.y - 14, scene.zone.r, 0, TAU); ctx.stroke(); ctx.restore();
+    }
+    function drawAim(scene, st) {
+      var a = scene.aim; if (!a || !st.tanks[a.idx] || st.tanks[a.idx].alive === false) return;
+      var b = aimBase(scene, st), pv = pivotOf(b, a.angle, st.h), u = 1 / scale, ang = a.angle * DEG, hx = Math.cos(ang), hy = -Math.sin(ang);
+      var R0 = 45 * TS + 14 * u;
+      // pravítko: tečkovaný půloblouk inkoustových teček (čitelné na nebi i na hlíně), rysky po 45° jako větší tečky
+      ctx.fillStyle = rgba(INK, LOOK.aimInkA);
+      for (var d = 0; d <= 180; d += 10) { var ar = d * DEG, big = d % 45 === 0; ctx.beginPath(); ctx.arc(pv.x + Math.cos(ar) * R0, pv.y - Math.sin(ar) * R0, (big ? 3.4 : 2.2) * u, 0, TAU); ctx.fill(); }
+      // síla: tečky ve směru hlavně, od žluté k červené, s inkoustovým obrysem 1,5 px
+      var pw = clamp(a.power / 100, 0, 1), n = Math.max(2, Math.round(3 + pw * 9)), red = LOOK.players[0].main;
+      ctx.strokeStyle = INK; ctx.lineWidth = 1.5 * u;
+      for (var i = 0; i < n; i++) {
+        var k = i / Math.max(1, n - 1), dist = R0 + (12 + i * 9) * u, rad = (2.4 + k * 2.2) * u;
+        ctx.fillStyle = mix(ACC, red, k * pw); ctx.beginPath(); ctx.arc(pv.x + hx * dist, pv.y + hy * dist, rad, 0, TAU); ctx.fill(); ctx.stroke();
+      }
+    }
+    function drawPreview(scene) {
+      var pv = scene.preview; if (!pv || pv.length < 2) return;
+      var n = pv.length, u = 1 / scale;
+      ctx.fillStyle = INK;
+      for (var i = 2; i < n; i += 3) { var q = pv[i], k = i / n; ctx.globalAlpha = 1 - k * 0.55; ctx.beginPath(); ctx.arc(q.x, q.y, lerp(4.2, 1.7, k) * u, 0, TAU); ctx.fill(); }
+      ctx.globalAlpha = 0.85; var le = pv[n - 1]; ctx.strokeStyle = INK; ctx.lineWidth = 2 * u; ctx.beginPath(); ctx.arc(le.x, le.y, 6 * u, 0, TAU); ctx.stroke(); ctx.globalAlpha = 1;
+    }
+    function drawTarget(scene, st) {
+      if (!scene.target) return;
+      var tx = clamp(scene.target.x, 8, W - 8), ty = H - st.h[clamp(Math.round(tx), 0, W - 1)], pulse = calm() ? 0 : Math.sin(time * 6) * 2, u = 1 / scale;
+      var air = scene.target.kind === "airstrike";
+      ctx.strokeStyle = air ? LOOK.players[0].main : LOOK.wheel; ctx.fillStyle = ctx.strokeStyle; ctx.lineWidth = 2.6 * u; ctx.lineCap = "round"; ctx.lineJoin = "round";
+      if (air) { ctx.setLineDash([2 * u, 7 * u]); ctx.beginPath(); ctx.moveTo(tx, 6); ctx.lineTo(tx, ty - 10); ctx.stroke(); ctx.setLineDash([]); for (var ai = -1; ai <= 1; ai++) { var bx = tx + ai * 38; ctx.beginPath(); ctx.moveTo(bx - 6, ty - 10 - pulse); ctx.lineTo(bx, ty - 2 - pulse); ctx.lineTo(bx + 6, ty - 10 - pulse); ctx.stroke(); } }
+      else { ctx.setLineDash([4 * u, 5 * u]); ctx.beginPath(); ctx.arc(tx, ty - 30 * TS, 40 * TS + pulse, 0, TAU); ctx.stroke(); ctx.setLineDash([]); ctx.beginPath(); ctx.arc(tx, ty - 30 * TS, 3 * u, 0, TAU); ctx.fill(); }
+    }
+
+    /* ---------------- vrstva obrazovky: značky, texty, bubliny ---------------- */
+    function tankTopScreen(t) { var S = shapes()[t.color === 1 ? 1 : 0]; return toScreen(t.x, t.y - S.topUnits * TS); }
+    function drawMarkers(scene, st) {
+      for (var i = 0; i < st.tanks.length; i++) {
+        var t = st.tanks[i]; if (!t || t.alive === false || t.hp <= 0 || scene.hideTank === i) continue;
+        var p = tankTopScreen(t), pal = LOOK.players[t.color === 1 ? 1 : 0];
+        if (scene.active === i) { // trojúhelník v barvě hráče, poskakuje
+          var bounce = calm() ? 0 : Math.abs(Math.sin(time * 4)) * 5, my = p.y - 8 - bounce;
+          ctx.fillStyle = pal.main; ctx.beginPath(); ctx.moveTo(p.x - 8, my - 11); ctx.lineTo(p.x + 8, my - 11); ctx.lineTo(p.x, my); ctx.closePath(); ctx.fill();
+        } else {
+          var hp = clamp(t.hp / (t.maxHp || 100), 0, 1);
+          if (hp < 0.35) { var bw = 30, bh = 6, bx = p.x - bw / 2, by = p.y - 12; ctx.fillStyle = rgba(INK, 0.25); rr(ctx, bx, by, bw, bh, 3); ctx.fill(); ctx.fillStyle = pal.main; rr(ctx, bx, by, Math.max(bh, bw * hp), bh, 3); ctx.fill(); }
+        }
+      }
+    }
+    function drawTexts(dt) { // plovoucí texty: Fredoka 700, krémová výplň, inkoustový obrys 4 px
+      for (var i = texts.length - 1; i >= 0; i--) {
+        var tx = texts[i]; tx.life += dt; if (tx.life > tx.max) { texts.splice(i, 1); continue; }
+        var u = tx.life / tx.max, e = 1 - Math.pow(1 - u, 3), wide = cw >= 640;
+        var fs = tx.big ? (wide ? 28 : 22) : (wide ? 20 : 17), rise = tx.big ? 40 : 26, sp = toScreen(tx.x, tx.y);
+        ctx.globalAlpha = u > 0.75 ? 1 - (u - 0.75) / 0.25 : 1;
+        var pop = 1 + Math.max(0, 1 - u * 8) * 0.5;
+        textOutlined(tx.text, sp.x, sp.y - e * rise, fs * pop, tx.col, "center", 4);
+        ctx.globalAlpha = 1;
+      }
+    }
+    function tankVisible(t) {
+      var p = toScreen(t.x, t.y), hw = 55 * TS * scale, top = 110 * TS * scale;
+      return p.x + hw > 0 && p.x - hw < cw && p.y > 0 && p.y - top < ch;
+    }
+    function drawEdgeBubble(t, i, names, other) { // soupeř mimo záběr: kulatá bublina s jeho živým obličejem u okraje
+      edgeHit[i] = null;
+      if (tankVisible(t)) return;
+      var p = toScreen(t.x, t.y - 40 * TS), R = LOOK.edgeR, pal = LOOK.players[t.color === 1 ? 1 : 0];
+      var nm = (names && names[i]) || "";
+      if (nm.length > 8) nm = nm.slice(0, 7) + "…";
+      if (other) nm += " · " + Math.round(Math.hypot(t.x - other.x, t.y - other.y) / 10) + " m";
+      var x = clamp(p.x, R + 14, cw - R - 14), yMin = cw >= 1000 ? 176 : 112, yMax = Math.max(yMin, ch - (cw >= 1000 ? 150 : 96)), y = clamp(p.y, yMin, yMax);
+      var ang = Math.atan2(p.y - y, p.x - x);
+      // šipka k tanku
+      ctx.fillStyle = pal.main; ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+      ctx.beginPath(); ctx.moveTo(R + 11, 0); ctx.lineTo(R - 2, -9); ctx.lineTo(R - 2, 9); ctx.closePath(); ctx.fill(); ctx.restore();
+      // bublina
+      ctx.fillStyle = rgba(INK, LOOK.shadowA); ctx.beginPath(); ctx.arc(x, y + LOOK.shadowPx, R, 0, TAU); ctx.fill();
+      ctx.fillStyle = pal.main; ctx.beginPath(); ctx.arc(x, y, R, 0, TAU); ctx.fill();
+      drawFace(ctx, i, x, y, R - 3);
+      // popisek
+      ctx.font = "600 13px " + FONT; var tw = ctx.measureText(nm).width, lw = tw + 18, lh = 22;
+      var lx = clamp(x - lw / 2, 6, cw - lw - 6), ly = y + R + 7;
+      flatCard(lx, ly, lw, lh, lh / 2, CREAM);
+      ctx.fillStyle = INK; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(nm, lx + lw / 2, ly + lh / 2 + 0.5);
+      edgeHit[i] = { x: x, y: y, r: R };
+    }
+    function drawAimBubble(scene, st) { // jen při tažení: krémová bublina na straně odvrácené od hlavně
+      var a = scene.aim; if (!a || !a.dragging || !st.tanks[a.idx] || st.tanks[a.idx].alive === false) return;
+      var b = aimBase(scene, st), top = tankTopScreen(b), base = toScreen(b.x, b.y);
+      var v1 = Math.round(a.angle) + "°", v2 = String(Math.round(a.power));
+      ctx.font = "700 22px " + FONT; var w1 = ctx.measureText(v1).width, w2 = ctx.measureText(v2).width;
+      ctx.font = "600 11px " + FONT; w1 = Math.max(w1, ctx.measureText("úhel").width); w2 = Math.max(w2, ctx.measureText("síla").width);
+      var bw = 16 + w1 + 18 + w2 + 16, bh = 54, side = Math.cos(a.angle * DEG) >= 0 ? -1 : 1, gap = 46 * TS * scale + 10;
+      var bx = side < 0 ? base.x - gap - bw : base.x + gap, by = top.y - bh + 10;
+      bx = clamp(bx, 8, cw - bw - 8); by = clamp(by, 8, ch - bh - 8);
+      flatCard(bx, by, bw, bh, 16, CREAM);
+      // ocásek k tanku
+      var txx = side < 0 ? bx + bw - 2 : bx + 2; ctx.fillStyle = CREAM; ctx.beginPath(); ctx.moveTo(txx, by + bh - 22); ctx.lineTo(txx - side * 12, by + bh - 6); ctx.lineTo(txx, by + bh - 9); ctx.closePath(); ctx.fill();
+      ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+      var c1 = bx + 16, c2 = c1 + w1 + 18;
+      ctx.fillStyle = rgba(INK, 0.6); ctx.font = "600 11px " + FONT; ctx.fillText("úhel", c1, by + 17); ctx.fillText("síla", c2, by + 17);
+      ctx.fillStyle = INK; ctx.font = "700 22px " + FONT; ctx.fillText(v1, c1, by + 42); ctx.fillText(v2, c2, by + 42);
+    }
+    function drawNoteBubble(scene, st) {
+      if (!scene.bubble || !st.tanks[scene.bubble.idx]) return;
+      var bt = st.tanks[scene.bubble.idx], sp = tankTopScreen(bt);
+      var font = "600 15px " + FONT, lines = wrapText(scene.bubble.text, Math.min(200, cw * 0.55), font);
+      ctx.font = font; var wmax = 0; lines.forEach(function (l) { wmax = Math.max(wmax, ctx.measureText(l).width); });
+      var bw = wmax + 24, bh = lines.length * 19 + 16, bx = clamp(sp.x - bw / 2, 6, cw - bw - 6), by = Math.max(6, sp.y - bh - 16);
+      flatCard(bx, by, bw, bh, 12, CREAM);
+      var tailx = clamp(sp.x, bx + 14, bx + bw - 14);
+      ctx.fillStyle = CREAM; ctx.beginPath(); ctx.moveTo(tailx - 7, by + bh - 1); ctx.lineTo(tailx + 3, by + bh - 1); ctx.lineTo(sp.x, by + bh + 9); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = INK; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+      lines.forEach(function (l, li) { ctx.fillText(l, bx + 12, by + 8 + 9.5 + li * 19); });
+    }
 
     function frame(scene, dtSec) {
       var dt = Math.min(dtSec || 1 / 60, 1 / 20); time += dt;
       var st = scene.state; if (!st) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height); return; }
+      if (!hillsOk) resize();
       lastState = st; lastWind = scene.wind != null ? scene.wind : st.wind || 0;
-      fx.forEach(function (f) { f.hit = Math.max(0, f.hit - dt); f.blink -= dt; if (f.blink < 0) f.blink = 2.4 + Math.random() * 2.6; f.recoil = Math.max(0, f.recoil - dt * 4); f.dust -= dt; f.mouth = Math.max(0, f.mouth - dt); f.shieldPing = Math.max(0, f.shieldPing - dt * 2); });
+      fx.forEach(function (f) { f.hit = Math.max(0, f.hit - dt); f.blink -= dt; if (f.blink < 0) f.blink = 2.4 + Math.random() * 2.6; f.recoil = Math.max(0, f.recoil - dt * 4); f.dust -= dt; f.shieldPing = Math.max(0, f.shieldPing - dt * 2); });
       // kola se otáčí podle ujeté vzdálenosti
-      st.tanks.forEach(function (t, i) { var f = fx[i]; if (f.lastX != null && Math.abs(t.x - f.lastX) > 0.01) f.wheel += (t.x - f.lastX) / 4.6; f.lastX = t.x; });
+      st.tanks.forEach(function (t, i) { var f = fx[i]; if (f.lastX != null && Math.abs(t.x - f.lastX) > 0.01) f.wheel += (t.x - f.lastX) / (6.6 * TS); f.lastX = t.x; });
 
-      var key = terrainKey(st.h); if (key !== tKey) { tKey = key; drawTerrain(st.h); }
+      var key = terrainKey(st.h); if (key !== tKey) { tKey = key; buildTerrain(st.h); }
+      var tk = (st.mod || "") + "|" + (st.map || ""); if (tk !== themeKey) { themeKey = tk; theme = themeFor(st); buildHills(); }
 
       camStep(dt);
-      TS = clamp(17 / (54 * scale), .56, .7); HK = clamp(1 / (scale * 1.35), 1, 2.2);
+      TS = tankScale(); HK = clamp(1 / (scale * 1.35), 1, 2.2);
+      computeExpr(scene, st);
+
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      var skyDy = clamp(-(cam.y - yFit()) * scale * .35, -SKYM, SKYM);
-      ctx.drawImage(skyC, 0, -SKYM + skyDy, cw, ch + SKYM * 2);
-      var shx = 0, shy = 0; if (shake > .05) { shx = (Math.random() - .5) * shake * 2 * scale; shy = (Math.random() - .5) * shake * 2 * scale; shake *= Math.pow(.0016, dt); } else shake = 0;
+      drawSky();
+      var shx = 0, shy = 0; if (shake > 0.05 && !calm()) { shx = (Math.random() - 0.5) * shake * 2 * scale; shy = (Math.random() - 0.5) * shake * 2 * scale; shake *= Math.pow(0.00002, dt); } else shake = 0;
       ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * (ox + shx), dpr * (oy + shy));
 
-      var focus = cam.x;
-      // kopce a mraky s paralaxou
-      var drawHill = function (hl) { var offx = -(focus - W / 2) * hl.par; ctx.drawImage(hl.cv, -hl.M + offx, 0, W + hl.M * 2, H); };
-      drawHill(hills[0]);
-      clouds.forEach(function (c) {
-        c.x += (c.v * 4 + lastWind * 1.4) * dt; if (c.x > W + 160) c.x = -220; if (c.x < -240) c.x = W + 140;
-        var sp = cloudSpr[c.s]; ctx.globalAlpha = .95; ctx.drawImage(sp.cv, c.x, c.y, 200 * c.sz, 100 * c.sz); ctx.globalAlpha = 1;
-      });
-      drawHill(hills[1]); drawHill(hills[2]);
-
+      drawCloud(dt); drawHills();
+      drawTerrainEdges(st.h);
       ctx.drawImage(terrC, 0, 0, W, H);
       drawFires(st.fires || []);
+      drawTarget(scene, st);
+      drawZone(scene, st);
 
-      // duchové a cíle
+      // duch tanku při jízdě
       if (scene.ghost && st.tanks[scene.ghost.idx]) {
         var gt = st.tanks[scene.ghost.idx], gx = scene.ghost.x, gy = H - st.h[clamp(Math.round(gx), 0, W - 1)];
-        drawTank({ x: gx, y: gy, hp: gt.hp, maxHp: gt.maxHp, alive: true, color: gt.color, shield: 0 }, scene.ghost.idx, { alpha: .42, h: st.h, angle: scene.aim ? scene.aim.angle : null });
-        ctx.strokeStyle = "rgba(255,241,214,.7)"; ctx.lineWidth = 2; ctx.setLineDash([3, 5]); ctx.beginPath(); ctx.moveTo(gt.x, gt.y - 4); ctx.lineTo(gx, gy - 4); ctx.stroke(); ctx.setLineDash([]);
+        ctx.strokeStyle = rgba(INK, 0.35); ctx.lineWidth = 2 / scale; ctx.setLineDash([3 / scale, 6 / scale]); ctx.beginPath(); ctx.moveTo(gt.x, gt.y - 6); ctx.lineTo(gx, gy - 6); ctx.stroke(); ctx.setLineDash([]);
+        drawTank({ x: gx, y: gy, hp: gt.hp, maxHp: gt.maxHp, alive: true, color: gt.color, shield: 0 }, scene.ghost.idx, { alpha: 0.42, h: st.h, angle: scene.aim ? scene.aim.angle : null, expr: "idle" });
       }
+      // stopy a projektily za tanky (střela vylétá zpoza hlavně)
+      drawTrails();
+      (st.proj || []).forEach(function (p) { drawProjectile(p); });
       // tanky
       for (var ti = 0; ti < st.tanks.length; ti++) {
         var t = st.tanks[ti];
-        var o = { h: st.h, active: scene.active === ti, angle: (scene.aim && scene.aim.idx === ti) ? scene.aim.angle : (scene.angles ? scene.angles[ti] : null) };
         if (scene.hideTank === ti) continue;
-        drawTank(t, ti, o);
+        drawTank(t, ti, { h: st.h, active: scene.active === ti, angle: (scene.aim && scene.aim.idx === ti) ? scene.aim.angle : (scene.angles ? scene.angles[ti] : null) });
         prevPos[ti] = { x: t.x, y: t.y };
+        if ((t.alive === false || t.hp <= 0) && !calm() && Math.random() < dt * 2.5) puff(t.x + (Math.random() - 0.5) * 30 * TS, t.y - 50 * TS, { r: 5 + Math.random() * 4, vy: -22, max: 1.4, a: 0.5, col: LOOK.dust });
       }
-      // zaměřovač: pravítko s ryskami a šipka síly
-      if (scene.aim && st.tanks[scene.aim.idx] && st.tanks[scene.aim.idx].alive !== false) {
-        var at = st.tanks[scene.aim.idx], ax = at.x, ay = at.y - 13, ang = scene.aim.angle * Math.PI / 180, pw = scene.aim.power;
-        if (scene.ghost && scene.ghost.idx === scene.aim.idx) { ax = scene.ghost.x; ay = H - st.h[clamp(Math.round(ax), 0, W - 1)] - 13; }
-        var uk = uiK();
-        if (scene.zone) { // hranice, odkud se miri (jinde se posouva mapa)
-          ctx.save(); ctx.translate(ax, ay); ctx.strokeStyle = "rgba(255,241,214," + (.2 + .08 * Math.sin(time * 3)) + ")"; ctx.lineWidth = 2 / scale; ctx.setLineDash([6 / scale, 9 / scale]); ctx.lineDashOffset = -time * 10 / scale; ctx.beginPath(); ctx.arc(0, 0, scene.zone.r, 0, TAU); ctx.stroke(); ctx.restore();
-        }
-        ctx.save(); ctx.translate(ax, ay); ctx.scale(uk, uk);
-        ctx.strokeStyle = "rgba(255,241,214,.32)"; ctx.lineWidth = 1.5; ctx.setLineDash([2, 4]); ctx.beginPath(); ctx.arc(0, 0, 44, Math.PI, TAU); ctx.stroke(); ctx.setLineDash([]);
-        for (var tk = 0; tk <= 180; tk += 15) { var a = tk * Math.PI / 180, big = tk % 45 === 0; ctx.strokeStyle = "rgba(255,241,214," + (big ? .6 : .3) + ")"; ctx.lineWidth = big ? 2 : 1.2; ctx.beginPath(); ctx.moveTo(Math.cos(a) * 41, -Math.sin(a) * 41); ctx.lineTo(Math.cos(a) * (big ? 50 : 47), -Math.sin(a) * (big ? 50 : 47)); ctx.stroke(); }
-        var L = 44 + pw * .62, hx = Math.cos(ang), hy = -Math.sin(ang);
-        ctx.strokeStyle = mix("#f6c76a", "#e8543c", clamp(pw / 100, 0, 1)); ctx.lineWidth = 4; ctx.lineCap = "round"; ctx.setLineDash([1, 8]); ctx.beginPath(); ctx.moveTo(hx * 36, hy * 36); ctx.lineTo(hx * L, hy * L); ctx.stroke(); ctx.setLineDash([]);
-        ctx.fillStyle = ctx.strokeStyle; ctx.save(); ctx.translate(hx * L, hy * L); ctx.rotate(Math.atan2(hy, hx)); ctx.beginPath(); ctx.moveTo(8, 0); ctx.lineTo(-3, -6); ctx.lineTo(-3, 6); ctx.closePath(); ctx.fill(); ctx.restore();
-        ctx.restore();
-      }
-      // náhled dráhy
-      if (scene.preview && scene.preview.length > 1) {
-        var pv = scene.preview, n = pv.length, pk = Math.min(uiK(), 1.7);
-        for (var pi = 2; pi < n; pi += 3) { var q = pv[pi], k2 = 1 - pi / n * .65; ctx.fillStyle = "rgba(25,8,25,.3)"; ctx.beginPath(); ctx.arc(q.x + 1, q.y + 1.5, 2.8 * pk, 0, TAU); ctx.fill(); ctx.fillStyle = "rgba(255,241,214," + (.9 * k2) + ")"; ctx.beginPath(); ctx.arc(q.x, q.y, 2.5 * pk, 0, TAU); ctx.fill(); }
-        var le = pv[n - 1]; ctx.strokeStyle = "rgba(246,199,106,.95)"; ctx.lineWidth = 2.2 * pk; ctx.beginPath(); ctx.arc(le.x, le.y, (6 + Math.sin(time * 5) * 1) * pk, 0, TAU); ctx.moveTo(le.x - 3.5, le.y - 3.5); ctx.lineTo(le.x + 3.5, le.y + 3.5); ctx.moveTo(le.x + 3.5, le.y - 3.5); ctx.lineTo(le.x - 3.5, le.y + 3.5); ctx.stroke();
-      }
-      // cíl schopnosti
-      if (scene.target) {
-        var tx = clamp(scene.target.x, 8, W - 8), ty = H - st.h[clamp(Math.round(tx), 0, W - 1)], pulse2 = Math.sin(time * 6) * 2;
-        ctx.strokeStyle = scene.target.kind === "airstrike" ? "#ff8a73" : "#9fe6e9"; ctx.fillStyle = ctx.strokeStyle; ctx.lineWidth = 2.4; ctx.lineCap = "round";
-        if (scene.target.kind === "airstrike") { ctx.setLineDash([2, 7]); ctx.beginPath(); ctx.moveTo(tx, 6); ctx.lineTo(tx, ty - 10); ctx.stroke(); ctx.setLineDash([]); for (var ai = -1; ai <= 1; ai++) { var bx = tx + ai * 38; ctx.beginPath(); ctx.moveTo(bx - 6, ty - 10 - pulse2); ctx.lineTo(bx, ty - 2 - pulse2); ctx.lineTo(bx + 6, ty - 10 - pulse2); ctx.stroke(); } }
-        else { ctx.beginPath(); ctx.arc(tx, ty - 16, 17 + pulse2, 0, TAU); ctx.setLineDash([4, 5]); ctx.stroke(); ctx.setLineDash([]); ctx.beginPath(); ctx.arc(tx, ty - 16, 3, 0, TAU); ctx.fill(); }
-      }
-      // projektily, stopy, částice, letadla
-      drawTrails(dt);
-      (st.proj || []).forEach(function (p) { drawProjectile(p, dt); });
+      drawAim(scene, st);
+      drawPreview(scene);
       for (var pl = planes.length - 1; pl >= 0; pl--) { var plane = planes[pl]; plane.life += dt; plane.x += plane.vx * dt; if (plane.x > W + 120 || plane.life > 4) { planes.splice(pl, 1); continue; } drawPlane(plane); }
       drawParts(dt, lastWind);
 
-      // plovoucí texty
-      for (var ti2 = texts.length - 1; ti2 >= 0; ti2--) {
-        var tx2 = texts[ti2]; tx2.life += dt; if (tx2.life > tx2.max) { texts.splice(ti2, 1); continue; }
-        var u2 = tx2.life / tx2.max, e2 = 1 - Math.pow(1 - Math.min(1, u2 * 3), 3);
-        ctx.globalAlpha = u2 > .7 ? 1 - (u2 - .7) / .3 : 1;
-        var pop = (1 + (1 - e2) * .6) * Math.min(HK, 1.8); textShadowed(tx2.text, tx2.x, tx2.y - e2 * 26 - u2 * 12, tx2.size * pop, tx2.col);
-        ctx.globalAlpha = 1;
-      }
-
-      // HP ukazatele nad tanky a značka na tahu
-      for (var hi = 0; hi < st.tanks.length; hi++) {
-        var ht = st.tanks[hi]; if (!ht || ht.alive === false || ht.hp <= 0) continue;
-        var hp = clamp(ht.hp / (ht.maxHp || 100), 0, 1), bx2 = ht.x, by2 = ht.y - 40 * TS - 10 * HK, bw = 40 * HK, bh = 7.5 * HK, pal = PAL[ht.color === 1 ? 1 : 0];
-        ctx.fillStyle = "rgba(25,8,25,.35)"; rr(ctx, bx2 - bw / 2 - 1, by2 - bh / 2 - 1.2, bw + 2, bh + 2, (bh + 2) / 2); ctx.fill();
-        ctx.fillStyle = "#1f1223"; rr(ctx, bx2 - bw / 2, by2 - bh / 2, bw, bh, bh / 2); ctx.fill();
-        if (hp > 0) { ctx.fillStyle = hp < .3 ? "#f2795f" : hp < .55 ? MUSTARD : pal.light; rr(ctx, bx2 - bw / 2, by2 - bh / 2, Math.max(bh * .7, bw * hp), bh, bh / 2); ctx.fill(); }
-        if (scene.active === hi) {
-          var bounce = Math.abs(Math.sin(time * 4)) * 5 * HK, mw = 7 * HK, mh = 10 * HK, my = by2 - bh / 2 - 3 * HK - bounce;
-          ctx.fillStyle = "rgba(25,8,25,.35)"; ctx.beginPath(); ctx.moveTo(bx2 - mw, my - mh + 1.5); ctx.lineTo(bx2 + mw, my - mh + 1.5); ctx.lineTo(bx2, my + 1.5); ctx.closePath(); ctx.fill();
-          ctx.fillStyle = MUSTARD; ctx.beginPath(); ctx.moveTo(bx2 - mw, my - mh); ctx.lineTo(bx2 + mw, my - mh); ctx.lineTo(bx2, my); ctx.closePath(); ctx.fill();
-        }
-      }
-
-      // bublina s poznámkou (v pixelech obrazovky, aby text zůstal čitelný)
+      // vrstva v pixelech obrazovky
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      for (var ei = 0; ei < st.tanks.length; ei++) { var et = st.tanks[ei]; if (et && et.alive !== false && et.hp > 0) edgeMarker(et, ei, scene.names); }
-      if (scene.bubble && st.tanks[scene.bubble.idx]) {
-        var bt = st.tanks[scene.bubble.idx], sp = toScreenLocal(bt.x, bt.y - 72);
-        var font = "400 15px " + FONT, lines = wrapText(scene.bubble.text, Math.min(200, cw * .55), font);
-        ctx.font = font; var wmax = 0; lines.forEach(function (l) { wmax = Math.max(wmax, ctx.measureText(l).width); });
-        var bw2 = wmax + 24, bh2 = lines.length * 19 + 16, bx3 = clamp(sp.x - bw2 / 2, 6, cw - bw2 - 6), by3 = Math.max(6, sp.y - bh2 - 10);
-        ctx.fillStyle = "rgba(25,8,25,.3)"; rr(ctx, bx3 + 1.5, by3 + 3, bw2, bh2, 10); ctx.fill();
-        ctx.fillStyle = "#fff1d6"; rr(ctx, bx3, by3, bw2, bh2, 10); ctx.fill();
-        var tailx = clamp(sp.x, bx3 + 14, bx3 + bw2 - 14);
-        ctx.beginPath(); ctx.moveTo(tailx - 7, by3 + bh2 - 1); ctx.lineTo(tailx + 3, by3 + bh2 - 1); ctx.lineTo(sp.x, by3 + bh2 + 9); ctx.closePath(); ctx.fill();
-        ctx.fillStyle = INK; ctx.textAlign = "left"; ctx.textBaseline = "middle";
-        lines.forEach(function (l, li) { ctx.fillText(l, bx3 + 12, by3 + 8 + 9.5 + li * 19); });
-      }
-      // papírové zrno přes celé bojiště
-      if (grain) { ctx.globalAlpha = .07; ctx.globalCompositeOperation = "multiply"; ctx.fillStyle = grain; ctx.fillRect(0, 0, cw, ch); ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1; }
+      drawMarkers(scene, st);
+      drawTexts(dt);
+      for (var ei = 0; ei < 2; ei++) { var et = st.tanks[ei]; if (et && et.alive !== false && et.hp > 0 && scene.hideTank !== ei) drawEdgeBubble(et, ei, scene.names, st.tanks[1 - ei]); else edgeHit[ei] = null; }
+      drawAimBubble(scene, st);
+      drawNoteBubble(scene, st);
     }
-    function edgeMarker(t, i, names) { // znacka na kraji obrazovky, kdyz je tank mimo zaber
-      var p = toScreenLocal(t.x, t.y - 18);
-      var dxs = p.x < 4 ? -1 : p.x > cw - 4 ? 1 : 0, dys = p.y < 4 ? -1 : p.y > ch - 4 ? 1 : 0;
-      if (!dxs && !dys) return;
-      var pal = PAL[t.color === 1 ? 1 : 0], nm = (names && names[i]) || "";
-      if (nm.length > 8) nm = nm.slice(0, 7) + "…";
-      ctx.font = "400 14px " + FONT; var tw = ctx.measureText(nm).width, w = tw + 42, h = 30;
-      var x = clamp(p.x, w / 2 + 16, cw - w / 2 - 16), y = clamp(p.y, 112, Math.max(112, ch - 96));
-      ctx.save(); ctx.translate(x, y);
-      ctx.fillStyle = "rgba(25,8,25,.35)"; rr(ctx, -w / 2 + 1.5, -h / 2 + 3, w, h, 9); ctx.fill();
-      ctx.fillStyle = CREAM; rr(ctx, -w / 2, -h / 2, w, h, 9); ctx.fill();
-      ctx.fillStyle = pal.body; ctx.beginPath();
-      if (dxs) { var ax = dxs * w / 2; ctx.moveTo(ax + dxs * 10, 0); ctx.lineTo(ax - dxs, -9); ctx.lineTo(ax - dxs, 9); }
-      else { var ay = dys * h / 2; ctx.moveTo(0, ay + dys * 10); ctx.lineTo(-9, ay - dys); ctx.lineTo(9, ay - dys); }
-      ctx.closePath(); ctx.fill();
-      ctx.fillStyle = pal.body; ctx.beginPath(); ctx.arc(-w / 2 + 15, 0, 7, 0, TAU); ctx.fill();
-      ctx.fillStyle = pal.light; ctx.beginPath(); ctx.arc(-w / 2 + 13, -2, 2.4, 0, TAU); ctx.fill();
-      ctx.fillStyle = INK; ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.fillText(nm, -w / 2 + 28, 1);
-      ctx.restore();
-    }
-    function tankTop(t) { return t.y - 40 * TS - 10 * HK - 3.75 * HK - 3 * HK - 10 * HK; }
-    function toScreenLocal(x, y) { return { x: ox + x * scale, y: oy + y * scale }; }
 
-    return { camera: camera, setView: setView, nudge: nudge, zoomAt: zoomAt, fitAll: fitAll, homeZoom: homeZoom, limits: limits, pannable: pannable, uiK: uiK, tankTop: tankTop, resize: resize, frame: frame, event: event, reset: reset, invalidate: function () { tKey = ""; }, toWorld: toWorld, toScreen: toScreen, scaleNow: function () { return scale; }, size: function () { return { w: cw, h: ch }; }, setSubPx: function (v) { SUBPX = !!v; }, PAL: PAL };
+    /* ---------------- veřejné doplňky: výraz, obličej do HUD, klepnutí na bublinu ---------------- */
+    function expr(idx) { return exprNow[idx] || "idle"; }
+    function drawFace(c, idx, cx, cy, r, exprOverride) {
+      if (!c || !(r > 0)) return;
+      var st = lastState, t = st && st.tanks && st.tanks[idx];
+      var style = t ? (t.color === 1 ? 1 : 0) : (idx === 1 ? 1 : 0), S = shapes()[style];
+      var e = exprOverride || exprNow[idx] || "idle", dead = !!t && (t.alive === false || t.hp <= 0) && e === "lose";
+      var sc = r * 2 / 66;
+      c.save();
+      c.beginPath(); c.arc(cx, cy, r, 0, TAU); c.fillStyle = LOOK.players[style].pale; c.fill(); c.clip();
+      c.translate(cx - S.faceC[0] * sc, cy - S.faceC[1] * sc); c.scale(sc, sc);
+      drawTankShape(c, { style: style, cos: cosTier[style], pal: palFor(style, dead), face: faceOf(idx, e), la: 30, ol: Math.max(1.2, r / 16) / sc, t: time + idx * 1.3, still: calm(), recoil: 0, wheel: 0, sway: 0 });
+      c.restore();
+    }
+    // celý tank jako samostatný obrázek (konec zápasu, logo): střed na zemi v (x, y), šířka pxWidth v aktuálních souřadnicích ctx
+    function drawTankSprite(c, idx, x, y, pxWidth, exprName, opts) {
+      if (!c || !(pxWidth > 0)) return;
+      opts = opts || {};
+      var style = idx === 1 ? 1 : 0, e = exprName || "idle", sc = pxWidth / 100, t = opts.t != null ? opts.t : time;
+      var still = calm(), face = e === "scared" ? "worry" : e;
+      if (e === "idle" && !opts.noBlink && !still && (t + idx * 1.7) % 3.7 < 0.12) face = "blink";
+      var la = opts.barrel != null ? opts.barrel : 50;
+      c.save();
+      c.translate(x, y); c.scale(opts.flip ? -sc : sc, sc);
+      if (e === "hit") { c.translate(still ? 0 : Math.sin(t * 55) * 1.2, 0); c.rotate(-8 * DEG); }
+      drawTankShape(c, { style: style, cos: opts.cos != null ? opts.cos : cosTier[style], pal: palFor(style, e === "lose"), face: face, la: e === "lose" ? 4 : la, ol: LOOK.outlinePx / sc, t: t + idx * 1.3, still: still, recoil: 0, wheel: 0, sway: still ? 0 : Math.sin(t * 2.6 + idx) * 2.2 });
+      if (e === "lose") { // obláček kouře nad poraženým
+        var S = shapes()[style], top = S.top - 10;
+        for (var k = 0; k < 3; k++) {
+          var ph = still ? k / 3 : ((t * 0.45 + k / 3) % 1), py = top - 2 - ph * 22, px = -6 + Math.sin(ph * 5 + k) * 5 + ph * 8;
+          c.globalAlpha = (still ? 0.6 : 0.75 * (1 - ph)); c.fillStyle = "#E9B57E"; c.beginPath(); c.arc(px, py, 4 + ph * 5, 0, TAU); c.fill();
+        }
+        c.globalAlpha = 1;
+      }
+      c.restore();
+    }
+    function edgeAt(clientX, clientY) {
+      var r = canvas.getBoundingClientRect(), x = clientX - r.left, y = clientY - r.top;
+      for (var i = 0; i < 2; i++) { var b = edgeHit[i]; if (b && Math.hypot(x - b.x, y - b.y) <= b.r + 4) return i; }
+      return -1;
+    }
+    function tankTop(t) { var S = shapes()[t.color === 1 ? 1 : 0]; return t.y - S.topUnits * TS - 22 / scale; }
+
+    return { camera: camera, setView: setView, nudge: nudge, zoomAt: zoomAt, fitAll: fitAll, homeZoom: homeZoom, limits: limits, pannable: pannable, uiK: uiK, tankTop: tankTop, resize: resize, frame: frame, event: event, reset: reset, invalidate: function () { tKey = ""; }, toWorld: toWorld, toScreen: toScreen, scaleNow: function () { return scale; }, size: function () { return { w: cw, h: ch }; }, setSubPx: function (v) { SUBPX = !!v; }, expr: expr, drawFace: drawFace, drawTankSprite: drawTankSprite, edgeAt: edgeAt, setCosmetics: setCosmetics, PAL: PAL };
   }
 
   window.TankRender = { create: create, W: W, H: H, PAL: PAL };
