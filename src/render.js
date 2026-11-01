@@ -277,7 +277,7 @@
   function create(canvas) {
     var ctx = canvas.getContext("2d");
     var cw = 1, ch = 1, dpr = 1, scale = 1, ox = 0, oy = 0, fit = 1, bk = 1, zMax = 3;
-    var cam = { x: W / 2, y: H / 2, z: 1 }, tgt = { x: W / 2, y: H / 2, z: 1 }, camRate = 3, camInit = false;
+    var cam = { x: W / 2, y: H / 2, z: 1 }, tgt = { x: W / 2, y: H / 2, z: 1 }, camRate = 3, camInit = false, over = 0, overT = 0; // over = jak hluboko pod spodek bojiště smí kamera zajet (jen pro záběr dopadu, plynule doběhne zpět)
     var hills = [], hillsOk = false, cloud = { x: 210 };
     var terrC = mk(1, 1), tctx = terrC.getContext("2d"), tKey = "";
     var parts = [], texts = [], trails = {}, planes = [];
@@ -308,17 +308,17 @@
 
     /* ---------------- kamera: stred pohledu ve svetovych pixelech, z = 1 je cele bojiste ---------------- */
     function limits() { return { fit: fit, zMax: zMax, cw: cw, ch: ch }; }
-    function clampCam(c) {
+    function clampCam(c, ov) {
       c.z = clamp(c.z, 1, zMax);
       var s = fit * c.z, vw = cw / s, vh = ch / s;
       c.x = vw >= W ? W / 2 : clamp(c.x, vw / 2, W - vw / 2);
-      var minY = vh / 2 - 90, maxY = H - vh / 2;
+      var minY = vh / 2 - 90, maxY = H - vh / 2 + (ov == null ? over : ov) * vh;
       c.y = minY > maxY ? maxY : clamp(c.y, minY, maxY);
     }
     function applyView() { scale = fit * cam.z; ox = cw / 2 - cam.x * scale; oy = ch / 2 - cam.y * scale; }
     function yFit() { return H - ch / fit / 2; }
     function setView(x, y, z, o) {
-      o = o || {}; tgt.x = x; tgt.y = y; tgt.z = z; clampCam(tgt);
+      o = o || {}; overT = clamp(o.over || 0, 0, 0.45); tgt.x = x; tgt.y = y; tgt.z = z; clampCam(tgt, overT);
       if (o.rate) camRate = o.rate;
       if (o.snap || !camInit) { camInit = true; cam.x = tgt.x; cam.y = tgt.y; cam.z = tgt.z; applyView(); }
     }
@@ -334,6 +334,7 @@
     function homeZoom() { return cw < 640 ? clamp(1.0 / fit, 1, zMax) : 1; }
     function camStep(dt) {
       var k = calm() ? 1 : 1 - Math.exp(-camRate * dt);
+      over += (overT - over) * k;
       cam.x += (tgt.x - cam.x) * k; cam.y += (tgt.y - cam.y) * k; cam.z *= Math.pow(tgt.z / cam.z, k);
       clampCam(cam); applyView();
     }
@@ -413,14 +414,16 @@
         }
       }
       if (mod === "tezko") { // obří planeta s prstencem vlevo pod horní lištou (na telefonu je plátno pod HUD, 104 px = pod minimapou a větrem; vítr a tlačítka jsou uprostřed a vpravo)
-        var small = cw < 640, sky = theme ? theme.sky : LOOK.sky, tr = small ? cw * 0.115 : 46 * u * 1.1, tx = (small ? cw * 0.25 : cw * 0.2) + px * 0.3;
-        var ty = small ? 104 + tr : Math.min(160 + tr, Math.max(ch * 0.5, 96 + tr)), ring = mix(sky, INK, 0.2);
+        var small = cw < 640, sky = theme ? theme.sky : LOOK.sky, tr = small ? cw * 0.115 : 46 * u * 1.1, tx = (small ? cw * 0.19 : cw * 0.2) + px * 0.3;
+        var ty = small ? 58 + tr : Math.min(160 + tr, Math.max(ch * 0.5, 96 + tr)), ring = mix(sky, INK, 0.2);
+        if (small) ctx.globalAlpha = 0.7; // na telefonu ztlumená, ať nesoupeří s postavou
         ctx.strokeStyle = ring; ctx.lineWidth = 7 * u; ctx.lineCap = "round";
         ctx.beginPath(); ctx.ellipse(tx, ty, tr * 1.65, tr * 0.3, -0.22, Math.PI, TAU); ctx.stroke(); // zadní půlka prstence
         ctx.fillStyle = mix(sky, "#D98E6A", 0.45); ctx.beginPath(); ctx.arc(tx, ty, tr, 0, TAU); ctx.fill();
         ctx.save(); ctx.beginPath(); ctx.arc(tx, ty, tr, 0, TAU); ctx.clip();
         ctx.fillStyle = mix(sky, "#D98E6A", 0.62); ctx.fillRect(tx - tr, ty - tr * 0.45, tr * 2, tr * 0.2); ctx.fillRect(tx - tr, ty + tr * 0.2, tr * 2, tr * 0.12); ctx.restore();
         ctx.beginPath(); ctx.ellipse(tx, ty, tr * 1.65, tr * 0.3, -0.22, 0, Math.PI); ctx.stroke(); // přední půlka
+        ctx.globalAlpha = 1;
       }
       if (mod === "bohaci") { // točící se mince
         coins.forEach(function (c) {
@@ -552,7 +555,7 @@
       } else if (t === "damage") {
         var tt = st && st.tanks[ev.tank], dx = tt ? tt.x : 0, dy = tt ? tt.y - (shapes()[tt.color === 1 ? 1 : 0].topUnits + 8) * TS : 0;
         if (fx[ev.tank] && (ev.amount > 0 || ev.shielded)) fx[ev.tank].hit = 0.8;
-        if (ev.shielded) { floatText(dx, dy, ev.amount > 0 ? "štít -" + ev.amount : "štít", CREAM, true, 0.9); if (fx[ev.tank]) fx[ev.tank].shieldPing = 1; }
+        if (ev.shielded) { floatText(dx, dy, ev.amount > 0 ? "-" + ev.amount : "0", LOOK.teal, true, 0.9); if (fx[ev.tank]) fx[ev.tank].shieldPing = 1; }
         else if (ev.amount > 0) floatText(dx, dy, "-" + ev.amount, CREAM, true, 0.9);
       } else if (t === "die") {
         var d = st && st.tanks[ev.tank];
@@ -921,7 +924,7 @@
       var nm = (names && names[i]) || "";
       if (nm.length > 8) nm = nm.slice(0, 7) + "…";
       if (other) nm += " · " + Math.round(Math.hypot(t.x - other.x, t.y - other.y) / 10) + " m";
-      var x = clamp(p.x, R + 14, cw - R - 14), yMin = cw >= 1000 ? 176 : 112, yMax = Math.max(yMin, ch - (cw >= 1000 ? 150 : 96)), y = clamp(p.y, yMin, yMax);
+      var x = clamp(p.x, R + 14, cw - R - 14), yMin = cw >= 1000 ? 176 : 112, yMax = Math.max(yMin, ch - (cw >= 1000 ? 150 + R + 60 : 96)), y = clamp(p.y, yMin, yMax);
       var ang = Math.atan2(p.y - y, p.x - x);
       // šipka k tanku
       ctx.fillStyle = pal.main; ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
@@ -992,6 +995,7 @@
       ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); drawModFront(dt, st); ctx.restore();
       drawTerrainEdges(st.h);
       ctx.drawImage(terrC, 0, 0, W, H);
+      if (over > 0.002) { ctx.fillStyle = LOOK.deep; ctx.fillRect(-2000, H - 1, W + 4000, 2000); } // záběr dopadu smí zajet pod spodek bojiště: hlubší vrstva hlíny pokračuje
       drawFires(st.fires || []);
       drawTarget(scene, st);
       drawZone(scene, st);

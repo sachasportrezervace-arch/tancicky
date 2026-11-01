@@ -436,6 +436,7 @@
   function camLoop(st) {
     if (!R) return;
     var now = performance.now();
+    $("stage").classList.toggle("hit", !!(S.turn && cc.impactUntil > 0)); // po dopadu se pilulka Přeskočit schová (stojí vedle tanku)
     if (S.turn || now < cc.impactUntil) {
       if (cc.manual) return; // hráč si kameru posunul nebo přiblížil sám: nechám ho
       var pr = st.proj && st.proj[0];
@@ -445,27 +446,41 @@
       else if (afterHit) { tx = cc.ix; ty = cc.iy; }
       else if (cc.has) { tx = cc.fx; ty = cc.fy; }
       else { var ct = st.tanks[st.cur]; tx = ct ? ct.x : W / 2; ty = ct ? ct.y : H / 2; }
-      var zf = cc.z || R.homeZoom(), vz = zf, vx = tx, vy = ty - 20;
-      if (!calm() && !S.fast) { var cf = flightFrame(st, tx, ty, zf, !!pr, pr); vx = cf.x; vy = cf.y; vz = cf.z; }
-      R.setView(vx, vy, vz, { rate: S.fast ? 14 : 4.2 });
+      var zf = cc.z || R.homeZoom(), vz = zf, vx = tx, vy = ty - 20, vo = 0, vr = 4.2;
+      if (!calm() && !S.fast) { var cf = flightFrame(st, tx, ty, zf, !!pr, pr); vx = cf.x; vy = cf.y; vz = cf.z; vo = cf.over; vr = cf.rate || 4.2; }
+      R.setView(vx, vy, vz, { rate: S.fast ? 14 : vr, over: vo });
     } else if (!cc.manual) camHome(st, false);
   }
   // let střely: kamera se ke zraněnému tanku přibližuje plynule podle vzdálenosti, při dopadu je tank velký (trup na desktopu ~120 px, na mobilu ~80 px; strop dává zMax)
   // čistě vizuální, z enginu se čte jen poloha střely a tanků
   function flightFrame(st, tx, ty, zf, flying, pr) {
     var lim = R.limits(), shooter = S.state ? S.state.cur : st.cur, best = null, bd = 1e9;
-    var sImp = lim.cw < 640 ? 2.0 : clamp(lim.ch / 300, 2.0, 3.0), zImp = Math.max(zf, clamp(sImp / lim.fit, 1, lim.zMax));
+    var portrait = lim.cw < 640, sImp = portrait ? 2.0 : clamp(lim.ch / 300, 2.0, 3.0), zImp = Math.max(zf, clamp(sImp / lim.fit, 1, lim.zMax));
     for (var i = 0; i < st.tanks.length; i++) {
       var t = st.tanks[i]; if (!t || t.alive === false || t.hp <= 0) continue;
       if (flying && i === shooter && !(pr && pr.vy > 0)) continue; // vlastní tank se počítá až při pádu střely
       var d = Math.hypot(t.x - tx, t.y - 30 - ty); if (d < bd) { bd = d; best = t; }
     }
+    if (!best) return { x: tx, y: ty - 20, z: zf, over: 0 };
+    if (portrait) return portraitFrame(lim, best, bd, tx, ty, zf, flying);
     var p, wl;
-    if (!best) return { x: tx, y: ty - 20, z: zf };
     if (flying) { p = smooth(clamp((560 - bd) / 420, 0, 1)); wl = 0.6 * p; }
     else { p = bd < 170 ? 1 : 0.8; wl = bd < 170 ? 0.65 : 0; } // dopad: zasažený tank (nebo místo dopadu) velký, tank blíž ke středu záběru
     var z = Math.exp(Math.log(zf) + (Math.log(zImp) - Math.log(zf)) * p);
-    return { x: tx + (best.x - tx) * wl, y: ty - 20 + (best.y - 30 - ty) * wl, z: z };
+    return { x: tx + (best.x - tx) * wl, y: ty - 20 + (best.y - 30 - ty) * wl, z: z, over: 0 };
+  }
+  // mobil na výšku: za letu se zoom řídí tím, aby se do záběru vešla střela i cílový tank (co nejdřív), při dopadu je tank v ~58 % výšky plátna
+  // (pod ním zůstává kus země, nad ním místo pro výraz a částice); u nízkého terénu smí kamera zajet pod spodek bojiště (render.over)
+  function portraitFrame(lim, best, bd, tx, ty, zf, flying) {
+    var sF = Math.min(zf * lim.fit, 0.5), sImp = 2.0, my = best.y - 30, wl, s, fac;
+    if (flying) {
+      var sFit = 0.9 * Math.min(lim.cw / (Math.abs(best.x - tx) + 40), lim.ch / (Math.abs(my - ty) + 40));
+      s = clamp(sFit, sF, sImp); fac = clamp((s - sF) / (sImp - sF), 0, 1);
+      wl = Math.max(0.5 * clamp((sFit - 0.5 * sF) / (0.5 * sF), 0, 1), fac * fac);
+    } else if (bd < 170) { s = sImp; fac = 1; wl = 1; }
+    else { s = 0.8 * sImp; fac = 0.5; wl = 0; }
+    var z = clamp(s / lim.fit, 1, lim.zMax), vh = lim.ch / (lim.fit * z);
+    return { x: tx + (best.x - tx) * wl, y: ty + (my - ty) * wl - 20 * (1 - fac) - 0.08 * vh * fac, z: z, over: 0.3 * fac, rate: 6 };
   }
   function smooth(u) { return u * u * (3 - 2 * u); }
   function toggleFit() {
