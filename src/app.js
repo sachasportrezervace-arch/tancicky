@@ -103,6 +103,7 @@
   function showIntro(st) {
     var el = $("roundIntro"), md = st.mod && st.mod !== "normal" ? modOf(st.mod) : null, mp = mapOf(st.map);
     el.querySelector(".ri-kolo").textContent = "Kolo " + st.round; el.querySelector(".ri-map").textContent = mp ? mp.name : "";
+    var rs = el.querySelector(".ri-series"), sl = seriesLabel(); rs.textContent = sl; rs.hidden = !sl;
     var rm = el.querySelector(".ri-mod"); rm.hidden = !md;
     if (md) { rm.querySelector("use").setAttribute("href", "#i-m-" + st.mod); rm.querySelector("span").textContent = md.name + ": " + (MOD_SHORT[st.mod] || md.desc); }
     el.hidden = false; el.style.animation = "none"; void el.offsetWidth; el.style.animation = "";
@@ -137,10 +138,13 @@
     var wd = st.wind || 0, aw = Math.abs(wd), box = $("windBox");
     box.dataset.dir = wd < 0 ? "-1" : "1"; box.dataset.n = aw === 0 ? "0" : String(Math.min(4, Math.ceil(aw / 4)));
     $("windTxt").textContent = aw; box.style.setProperty("--wf", String(Math.min(1, aw / 15))); box.title = aw === 0 ? "Bezvětří" : "Vítr " + aw + (wd < 0 ? " doleva" : " doprava");
-    var g = S.g, ser = "";
-    if (S.solo) ser = "Trénink";
-    else if (g && (g.gi > 1 || (g.w && (g.w[0] || g.w[1])))) ser = "odveta " + (g.gi - 1) + " · série " + g.w[0] + ":" + g.w[1];
-    $("seriesTxt").textContent = ser;
+    $("seriesTxt").textContent = seriesLabel(); // text zůstává v DOM pro čtečky a testy, na ploše je skrytý (jen karta kola ho ukazuje)
+  }
+  function seriesLabel() {
+    var g = S.g;
+    if (S.solo) return "Trénink";
+    if (g && (g.gi > 1 || (g.w && (g.w[0] || g.w[1])))) return "Odveta " + (g.gi - 1) + " · série " + g.w[0] + ":" + g.w[1];
+    return "";
   }
 
   /* ---------------- obchod: stejné počty jako engine ---------------- */
@@ -433,16 +437,37 @@
     if (!R) return;
     var now = performance.now();
     if (S.turn || now < cc.impactUntil) {
+      if (cc.manual) return; // hráč si kameru posunul nebo přiblížil sám: nechám ho
       var pr = st.proj && st.proj[0];
       if (pr) { cc.fx = pr.x / 100; cc.fy = pr.y / 100; cc.has = true; }
-      var tx, ty;
+      var tx, ty, afterHit = !pr && cc.impactUntil > 0; // dopad: kamera drží záběr, dokud tah neskončí (žádný návrat k letu)
       if (pr) { tx = cc.fx; ty = cc.fy; }
-      else if (now < cc.impactUntil) { tx = cc.ix; ty = cc.iy; }
+      else if (afterHit) { tx = cc.ix; ty = cc.iy; }
       else if (cc.has) { tx = cc.fx; ty = cc.fy; }
       else { var ct = st.tanks[st.cur]; tx = ct ? ct.x : W / 2; ty = ct ? ct.y : H / 2; }
-      R.setView(tx, ty - 20, cc.z || R.homeZoom(), { rate: S.fast ? 14 : 4.2 });
+      var zf = cc.z || R.homeZoom(), vz = zf, vx = tx, vy = ty - 20;
+      if (!calm() && !S.fast) { var cf = flightFrame(st, tx, ty, zf, !!pr, pr); vx = cf.x; vy = cf.y; vz = cf.z; }
+      R.setView(vx, vy, vz, { rate: S.fast ? 14 : 4.2 });
     } else if (!cc.manual) camHome(st, false);
   }
+  // let střely: kamera se ke zraněnému tanku přibližuje plynule podle vzdálenosti, při dopadu je tank velký (trup na desktopu ~120 px, na mobilu ~80 px; strop dává zMax)
+  // čistě vizuální, z enginu se čte jen poloha střely a tanků
+  function flightFrame(st, tx, ty, zf, flying, pr) {
+    var lim = R.limits(), shooter = S.state ? S.state.cur : st.cur, best = null, bd = 1e9;
+    var sImp = lim.cw < 640 ? 2.0 : clamp(lim.ch / 300, 2.0, 3.0), zImp = Math.max(zf, clamp(sImp / lim.fit, 1, lim.zMax));
+    for (var i = 0; i < st.tanks.length; i++) {
+      var t = st.tanks[i]; if (!t || t.alive === false || t.hp <= 0) continue;
+      if (flying && i === shooter && !(pr && pr.vy > 0)) continue; // vlastní tank se počítá až při pádu střely
+      var d = Math.hypot(t.x - tx, t.y - 30 - ty); if (d < bd) { bd = d; best = t; }
+    }
+    var p, wl;
+    if (!best) return { x: tx, y: ty - 20, z: zf };
+    if (flying) { p = smooth(clamp((560 - bd) / 420, 0, 1)); wl = 0.6 * p; }
+    else { p = bd < 170 ? 1 : 0.8; wl = bd < 170 ? 0.65 : 0; } // dopad: zasažený tank (nebo místo dopadu) velký, tank blíž ke středu záběru
+    var z = Math.exp(Math.log(zf) + (Math.log(zImp) - Math.log(zf)) * p);
+    return { x: tx + (best.x - tx) * wl, y: ty - 20 + (best.y - 30 - ty) * wl, z: z };
+  }
+  function smooth(u) { return u * u * (3 - 2 * u); }
   function toggleFit() {
     if (!R) return; var cm = R.camera(), st = S.turn ? S.turn.state : S.state;
     if (cm.zoom > 1.04) { R.fitAll(); R.setView(R.camera().tx, R.camera().ty, 1, { rate: 9 }); cc.manual = true; }

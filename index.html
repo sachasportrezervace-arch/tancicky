@@ -638,6 +638,10 @@ body:not([data-herna]) #otherGameBtn { display: none !important; }
   .gift-title { font-size: 0; } .gift-title::before { content: "Dárek"; font-size: 13px; font-weight: 700; color: var(--ink-2); } /* jméno je v pruhu nahoře */
   .gift-opts { min-width: 0; } .gopt { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 }
+
+/* štítek modifikátoru a řádek série dublují podpis na nebi: na ploše jsou jen pro čtečky, vidět je ukazuje karta kola */
+.series, .modchip { position: absolute !important; left: 0 !important; top: 0 !important; transform: none !important; width: 1px; height: 1px; margin: -1px; padding: 0 !important; border: 0; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; box-shadow: none; pointer-events: none; }
+.ri-series { font: 700 14px/1.1 var(--font); color: var(--ink-2); letter-spacing: .02em; }
 </style>
 </head>
 <body data-view="setup">
@@ -968,7 +972,7 @@ body:not([data-herna]) #otherGameBtn { display: none !important; }
   </div>
 
 </div>
-<div class="roundintro" id="roundIntro" hidden role="status" aria-live="polite"><div class="ri-kolo"></div><div class="ri-map"></div><div class="ri-mod"><svg class="ic" aria-hidden="true"><use href="#i-m-vichr"/></svg><span></span></div></div>
+<div class="roundintro" id="roundIntro" hidden role="status" aria-live="polite"><div class="ri-kolo"></div><div class="ri-map"></div><div class="ri-series"></div><div class="ri-mod"><svg class="ic" aria-hidden="true"><use href="#i-m-vichr"/></svg><span></span></div></div>
   <span class="toast" id="toast" role="status" aria-live="polite" hidden></span>
 
 <script>/*
@@ -2723,14 +2727,7 @@ body:not([data-herna]) #otherGameBtn { display: none !important; }
       var mod = st.mod, still = calm(), px = -(cam.x - W / 2) * scale * 0.06, u = clamp(Math.min(cw, ch) / 420, 0.75, 1.5);
       var sky = theme ? theme.sky : LOOK.sky;
       if (mod === "mesic") { /* měsíc se kreslí před kopci (drawModFront), ať ho kopec ani HUD neschová */
-      } else if (mod === "tezko") { // obří planeta s prstencem, zapadlá za kopci
-        var tx = cw * 0.2 + px, tr = 46 * u, ty = Math.min(ch * 0.3, hillTopY(tx) - tr * 0.3), ring = mix(sky, INK, 0.2);
-        ctx.strokeStyle = ring; ctx.lineWidth = 7 * u; ctx.lineCap = "round";
-        ctx.beginPath(); ctx.ellipse(tx, ty, tr * 1.65, tr * 0.3, -0.22, Math.PI, TAU); ctx.stroke(); // zadní půlka prstence
-        ctx.fillStyle = mix(sky, "#D98E6A", 0.45); ctx.beginPath(); ctx.arc(tx, ty, tr, 0, TAU); ctx.fill();
-        ctx.save(); ctx.beginPath(); ctx.arc(tx, ty, tr, 0, TAU); ctx.clip();
-        ctx.fillStyle = mix(sky, "#D98E6A", 0.62); ctx.fillRect(tx - tr, ty - tr * 0.45, tr * 2, tr * 0.2); ctx.fillRect(tx - tr, ty + tr * 0.2, tr * 2, tr * 0.12); ctx.restore();
-        ctx.beginPath(); ctx.ellipse(tx, ty, tr * 1.65, tr * 0.3, -0.22, 0, Math.PI); ctx.stroke(); // přední půlka
+      } else if (mod === "tezko") { /* planeta se kreslí před kopci (drawModFront), ať ji horní lišta ani ovládání neschová */
       }
     }
     function hillTopY(sx) { // y vzdáleného kopce (px obrazovky) pod bodem sx, ať měsíc a planeta vykouknou nad kopec
@@ -2747,6 +2744,16 @@ body:not([data-herna]) #otherGameBtn { display: none !important; }
           var sx = cw * (0.07 + s * 0.15 + ((s * 0.029) % 0.05)) + px * 0.6, sy = ch * (0.17 + ((s * 0.041) % 0.16)), a = still ? 0.85 : 0.5 + 0.4 * Math.sin(time * 2 + s * 1.9), k = 6 * u;
           ctx.fillStyle = rgba(CREAM, a); ctx.beginPath(); ctx.moveTo(sx, sy - k); ctx.lineTo(sx + k * 0.27, sy - k * 0.27); ctx.lineTo(sx + k, sy); ctx.lineTo(sx + k * 0.27, sy + k * 0.27); ctx.lineTo(sx, sy + k); ctx.lineTo(sx - k * 0.27, sy + k * 0.27); ctx.lineTo(sx - k, sy); ctx.lineTo(sx - k * 0.27, sy - k * 0.27); ctx.closePath(); ctx.fill();
         }
+      }
+      if (mod === "tezko") { // obří planeta s prstencem vlevo pod horní lištou (na telefonu je plátno pod HUD, 104 px = pod minimapou a větrem; vítr a tlačítka jsou uprostřed a vpravo)
+        var small = cw < 640, sky = theme ? theme.sky : LOOK.sky, tr = small ? cw * 0.115 : 46 * u * 1.1, tx = (small ? cw * 0.25 : cw * 0.2) + px * 0.3;
+        var ty = small ? 104 + tr : Math.min(160 + tr, Math.max(ch * 0.5, 96 + tr)), ring = mix(sky, INK, 0.2);
+        ctx.strokeStyle = ring; ctx.lineWidth = 7 * u; ctx.lineCap = "round";
+        ctx.beginPath(); ctx.ellipse(tx, ty, tr * 1.65, tr * 0.3, -0.22, Math.PI, TAU); ctx.stroke(); // zadní půlka prstence
+        ctx.fillStyle = mix(sky, "#D98E6A", 0.45); ctx.beginPath(); ctx.arc(tx, ty, tr, 0, TAU); ctx.fill();
+        ctx.save(); ctx.beginPath(); ctx.arc(tx, ty, tr, 0, TAU); ctx.clip();
+        ctx.fillStyle = mix(sky, "#D98E6A", 0.62); ctx.fillRect(tx - tr, ty - tr * 0.45, tr * 2, tr * 0.2); ctx.fillRect(tx - tr, ty + tr * 0.2, tr * 2, tr * 0.12); ctx.restore();
+        ctx.beginPath(); ctx.ellipse(tx, ty, tr * 1.65, tr * 0.3, -0.22, 0, Math.PI); ctx.stroke(); // přední půlka
       }
       if (mod === "bohaci") { // točící se mince
         coins.forEach(function (c) {
@@ -3619,6 +3626,7 @@ body:not([data-herna]) #otherGameBtn { display: none !important; }
   function showIntro(st) {
     var el = $("roundIntro"), md = st.mod && st.mod !== "normal" ? modOf(st.mod) : null, mp = mapOf(st.map);
     el.querySelector(".ri-kolo").textContent = "Kolo " + st.round; el.querySelector(".ri-map").textContent = mp ? mp.name : "";
+    var rs = el.querySelector(".ri-series"), sl = seriesLabel(); rs.textContent = sl; rs.hidden = !sl;
     var rm = el.querySelector(".ri-mod"); rm.hidden = !md;
     if (md) { rm.querySelector("use").setAttribute("href", "#i-m-" + st.mod); rm.querySelector("span").textContent = md.name + ": " + (MOD_SHORT[st.mod] || md.desc); }
     el.hidden = false; el.style.animation = "none"; void el.offsetWidth; el.style.animation = "";
@@ -3653,10 +3661,13 @@ body:not([data-herna]) #otherGameBtn { display: none !important; }
     var wd = st.wind || 0, aw = Math.abs(wd), box = $("windBox");
     box.dataset.dir = wd < 0 ? "-1" : "1"; box.dataset.n = aw === 0 ? "0" : String(Math.min(4, Math.ceil(aw / 4)));
     $("windTxt").textContent = aw; box.style.setProperty("--wf", String(Math.min(1, aw / 15))); box.title = aw === 0 ? "Bezvětří" : "Vítr " + aw + (wd < 0 ? " doleva" : " doprava");
-    var g = S.g, ser = "";
-    if (S.solo) ser = "Trénink";
-    else if (g && (g.gi > 1 || (g.w && (g.w[0] || g.w[1])))) ser = "odveta " + (g.gi - 1) + " · série " + g.w[0] + ":" + g.w[1];
-    $("seriesTxt").textContent = ser;
+    $("seriesTxt").textContent = seriesLabel(); // text zůstává v DOM pro čtečky a testy, na ploše je skrytý (jen karta kola ho ukazuje)
+  }
+  function seriesLabel() {
+    var g = S.g;
+    if (S.solo) return "Trénink";
+    if (g && (g.gi > 1 || (g.w && (g.w[0] || g.w[1])))) return "Odveta " + (g.gi - 1) + " · série " + g.w[0] + ":" + g.w[1];
+    return "";
   }
 
   /* ---------------- obchod: stejné počty jako engine ---------------- */
@@ -3949,16 +3960,37 @@ body:not([data-herna]) #otherGameBtn { display: none !important; }
     if (!R) return;
     var now = performance.now();
     if (S.turn || now < cc.impactUntil) {
+      if (cc.manual) return; // hráč si kameru posunul nebo přiblížil sám: nechám ho
       var pr = st.proj && st.proj[0];
       if (pr) { cc.fx = pr.x / 100; cc.fy = pr.y / 100; cc.has = true; }
-      var tx, ty;
+      var tx, ty, afterHit = !pr && cc.impactUntil > 0; // dopad: kamera drží záběr, dokud tah neskončí (žádný návrat k letu)
       if (pr) { tx = cc.fx; ty = cc.fy; }
-      else if (now < cc.impactUntil) { tx = cc.ix; ty = cc.iy; }
+      else if (afterHit) { tx = cc.ix; ty = cc.iy; }
       else if (cc.has) { tx = cc.fx; ty = cc.fy; }
       else { var ct = st.tanks[st.cur]; tx = ct ? ct.x : W / 2; ty = ct ? ct.y : H / 2; }
-      R.setView(tx, ty - 20, cc.z || R.homeZoom(), { rate: S.fast ? 14 : 4.2 });
+      var zf = cc.z || R.homeZoom(), vz = zf, vx = tx, vy = ty - 20;
+      if (!calm() && !S.fast) { var cf = flightFrame(st, tx, ty, zf, !!pr, pr); vx = cf.x; vy = cf.y; vz = cf.z; }
+      R.setView(vx, vy, vz, { rate: S.fast ? 14 : 4.2 });
     } else if (!cc.manual) camHome(st, false);
   }
+  // let střely: kamera se ke zraněnému tanku přibližuje plynule podle vzdálenosti, při dopadu je tank velký (trup na desktopu ~120 px, na mobilu ~80 px; strop dává zMax)
+  // čistě vizuální, z enginu se čte jen poloha střely a tanků
+  function flightFrame(st, tx, ty, zf, flying, pr) {
+    var lim = R.limits(), shooter = S.state ? S.state.cur : st.cur, best = null, bd = 1e9;
+    var sImp = lim.cw < 640 ? 2.0 : clamp(lim.ch / 300, 2.0, 3.0), zImp = Math.max(zf, clamp(sImp / lim.fit, 1, lim.zMax));
+    for (var i = 0; i < st.tanks.length; i++) {
+      var t = st.tanks[i]; if (!t || t.alive === false || t.hp <= 0) continue;
+      if (flying && i === shooter && !(pr && pr.vy > 0)) continue; // vlastní tank se počítá až při pádu střely
+      var d = Math.hypot(t.x - tx, t.y - 30 - ty); if (d < bd) { bd = d; best = t; }
+    }
+    var p, wl;
+    if (!best) return { x: tx, y: ty - 20, z: zf };
+    if (flying) { p = smooth(clamp((560 - bd) / 420, 0, 1)); wl = 0.6 * p; }
+    else { p = bd < 170 ? 1 : 0.8; wl = bd < 170 ? 0.65 : 0; } // dopad: zasažený tank (nebo místo dopadu) velký, tank blíž ke středu záběru
+    var z = Math.exp(Math.log(zf) + (Math.log(zImp) - Math.log(zf)) * p);
+    return { x: tx + (best.x - tx) * wl, y: ty - 20 + (best.y - 30 - ty) * wl, z: z };
+  }
+  function smooth(u) { return u * u * (3 - 2 * u); }
   function toggleFit() {
     if (!R) return; var cm = R.camera(), st = S.turn ? S.turn.state : S.state;
     if (cm.zoom > 1.04) { R.fitAll(); R.setView(R.camera().tx, R.camera().ty, 1, { rate: 9 }); cc.manual = true; }

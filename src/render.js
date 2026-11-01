@@ -394,14 +394,7 @@
       var mod = st.mod, still = calm(), px = -(cam.x - W / 2) * scale * 0.06, u = clamp(Math.min(cw, ch) / 420, 0.75, 1.5);
       var sky = theme ? theme.sky : LOOK.sky;
       if (mod === "mesic") { /* měsíc se kreslí před kopci (drawModFront), ať ho kopec ani HUD neschová */
-      } else if (mod === "tezko") { // obří planeta s prstencem, zapadlá za kopci
-        var tx = cw * 0.2 + px, tr = 46 * u, ty = Math.min(ch * 0.3, hillTopY(tx) - tr * 0.3), ring = mix(sky, INK, 0.2);
-        ctx.strokeStyle = ring; ctx.lineWidth = 7 * u; ctx.lineCap = "round";
-        ctx.beginPath(); ctx.ellipse(tx, ty, tr * 1.65, tr * 0.3, -0.22, Math.PI, TAU); ctx.stroke(); // zadní půlka prstence
-        ctx.fillStyle = mix(sky, "#D98E6A", 0.45); ctx.beginPath(); ctx.arc(tx, ty, tr, 0, TAU); ctx.fill();
-        ctx.save(); ctx.beginPath(); ctx.arc(tx, ty, tr, 0, TAU); ctx.clip();
-        ctx.fillStyle = mix(sky, "#D98E6A", 0.62); ctx.fillRect(tx - tr, ty - tr * 0.45, tr * 2, tr * 0.2); ctx.fillRect(tx - tr, ty + tr * 0.2, tr * 2, tr * 0.12); ctx.restore();
-        ctx.beginPath(); ctx.ellipse(tx, ty, tr * 1.65, tr * 0.3, -0.22, 0, Math.PI); ctx.stroke(); // přední půlka
+      } else if (mod === "tezko") { /* planeta se kreslí před kopci (drawModFront), ať ji horní lišta ani ovládání neschová */
       }
     }
     function hillTopY(sx) { // y vzdáleného kopce (px obrazovky) pod bodem sx, ať měsíc a planeta vykouknou nad kopec
@@ -418,6 +411,16 @@
           var sx = cw * (0.07 + s * 0.15 + ((s * 0.029) % 0.05)) + px * 0.6, sy = ch * (0.17 + ((s * 0.041) % 0.16)), a = still ? 0.85 : 0.5 + 0.4 * Math.sin(time * 2 + s * 1.9), k = 6 * u;
           ctx.fillStyle = rgba(CREAM, a); ctx.beginPath(); ctx.moveTo(sx, sy - k); ctx.lineTo(sx + k * 0.27, sy - k * 0.27); ctx.lineTo(sx + k, sy); ctx.lineTo(sx + k * 0.27, sy + k * 0.27); ctx.lineTo(sx, sy + k); ctx.lineTo(sx - k * 0.27, sy + k * 0.27); ctx.lineTo(sx - k, sy); ctx.lineTo(sx - k * 0.27, sy - k * 0.27); ctx.closePath(); ctx.fill();
         }
+      }
+      if (mod === "tezko") { // obří planeta s prstencem vlevo pod horní lištou (na telefonu je plátno pod HUD, 104 px = pod minimapou a větrem; vítr a tlačítka jsou uprostřed a vpravo)
+        var small = cw < 640, sky = theme ? theme.sky : LOOK.sky, tr = small ? cw * 0.115 : 46 * u * 1.1, tx = (small ? cw * 0.25 : cw * 0.2) + px * 0.3;
+        var ty = small ? 104 + tr : Math.min(160 + tr, Math.max(ch * 0.5, 96 + tr)), ring = mix(sky, INK, 0.2);
+        ctx.strokeStyle = ring; ctx.lineWidth = 7 * u; ctx.lineCap = "round";
+        ctx.beginPath(); ctx.ellipse(tx, ty, tr * 1.65, tr * 0.3, -0.22, Math.PI, TAU); ctx.stroke(); // zadní půlka prstence
+        ctx.fillStyle = mix(sky, "#D98E6A", 0.45); ctx.beginPath(); ctx.arc(tx, ty, tr, 0, TAU); ctx.fill();
+        ctx.save(); ctx.beginPath(); ctx.arc(tx, ty, tr, 0, TAU); ctx.clip();
+        ctx.fillStyle = mix(sky, "#D98E6A", 0.62); ctx.fillRect(tx - tr, ty - tr * 0.45, tr * 2, tr * 0.2); ctx.fillRect(tx - tr, ty + tr * 0.2, tr * 2, tr * 0.12); ctx.restore();
+        ctx.beginPath(); ctx.ellipse(tx, ty, tr * 1.65, tr * 0.3, -0.22, 0, Math.PI); ctx.stroke(); // přední půlka
       }
       if (mod === "bohaci") { // točící se mince
         coins.forEach(function (c) {
