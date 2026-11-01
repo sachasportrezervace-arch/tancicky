@@ -5,6 +5,11 @@ Nejnovější nahoře. Číst jen horních ~40 řádků.
 PŘEVZATO 1. 11. – kolo vylepšení, session tancicky; jiná session sem nepíše.
 PŘEVZATO 31. 10. – dodělává session na účtu P, jiná session sem nepíše.
 
+## 2026-11-01 – verdikt design-eye po polishi
+- **Design-eye (živý build 689f10c, snímky `tests/shots/de-k7`):** „profi indie hra: ANO“, verdikt SILNÉ. Mobil na výšku drží zasažený tank celý nad ovládáním, dopad čitelný na desktopu i na šířku, planeta nesoupeří s tankem.
+- **Zbývá (POLISH, neblokuje):** bílé čárky větru při dopadu ztlumit/vypnout; panel na mobilu ~35 % výšky (vědomě kvůli Dárku), případně zmenšit tlačítka schopností.
+- **NEOVĚŘENO:** skutečný iPhone (tloušťka Fredoky, plynulost kamery), mobil na šířku po změně kamery jen na snímku.
+
 ## 2026-11-01 – polish 2: kamera na výšku, číslo škody, odznaky, planeta
 - **Hotovo (po design-eye na de-k6: mobil na výšku „ještě ne“):** (1) `portraitFrame` v `src/app.js`: za letu se zoom řídí tak, aby se do záběru vešla střela i cílový tank (min. měřítko 0,5, od vzdálenosti ~700 world px), při dopadu je trup tanku v ~55–60 % výšky plátna (naměřeno sondou 0,52–0,58), rate 6; u nízkého terénu smí kamera zajet pod spodek bojiště (`over` v `src/render.js`, plynule doběhne zpět, hlubší vrstva hlíny pokračuje pod okraj). Na mobilu na výšku je plátno nad panelem `#ctrl` (flex sloupec), takže „viditelná plocha“ = výška plátna. `#skipReplay` se po dopadu schová (`.stage.hit`). (2) Plovoucí text štítu je jen „-7“ tyrkysově (`LOOK.teal`), 0 škody = „0“. Odznak tanku mimo záběr má na desktopu spodní mez o `R + 60` výš, mezera k chatu ≥ 16 px. (3) Planeta na mobilu v levém horním rohu pod minimapou (y = 58 + r), krytí 70 %.
 - **Ověřeno (příkaz → počty → exit), lokálně:** engine 309 PASS/0 FAIL (0), net 64/64 (0), playtest3 PASS (0), duel `--variant both` 86/86 (0), mobile 66/66 (0), solo 21/21 (0), herna 58/58 (0). **ŽIVĚ (Pages, 689f10c):** duel 86/86 (0), mobile 66/66 (0), herna 58/58 (0), `mistnost-hry.cjs tancicky` 42 PASS, 0 FAIL (0). Snímky: `tests/shots/de-k7` (živě), `de-k6b` (lokál).
