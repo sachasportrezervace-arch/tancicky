@@ -582,3 +582,37 @@ body:not([data-herna]) #otherGameBtn { display: none !important; }
 }
 @media (orientation: landscape) and (max-height: 340px) { .end-body .lead { display: none; } }
 @media (max-height: 440px) and (orientation: portrait) { .end-body .lead { display: none; } }
+
+/* ---------- 1. 11.: zásobník na výšku o řadu nižší (víc bojiště) ---------- */
+/* pojezd je vedle zbraně (‹ › s proužkem paliva), Pal! vedle úhlu a síly */
+@media (orientation: portrait) and (max-width: 1179px) {
+  .c-weapon { grid-row: 1; grid-column: 1 / 3; }
+  .ctrl.forced .c-weapon { grid-column: 1; }
+  .gift-forced { grid-row: 1; grid-column: 2; }
+  .c-move { grid-row: 1; grid-column: 3; position: relative; height: 44px; gap: 0; padding: 0 2px; justify-content: space-between; }
+  .c-move .mv { width: 44px; height: 40px; border-radius: var(--r-full); }
+  .c-move .fuel { position: absolute; left: 16px; right: 16px; bottom: -7px; height: 4px; flex: none; }
+  .c-move .fuel #fuelTxt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .c-move .ftrack { height: 4px; }
+  .c-angle { grid-row: 4; grid-column: 1; }
+  .c-power { grid-row: 4; grid-column: 2; }
+  .c-fire { grid-row: 4; grid-column: 3; width: 100%; height: 56px; border-radius: var(--r-full); }
+  .claimbar { grid-row: 5; }
+}
+/* Přeskočit je dole u okraje bojiště, ne uprostřed nebe; soupeřovy schopnosti na desktopu nezahlcují plochu */
+@media (max-width: 1179px), (max-height: 620px) {
+  .skip, .stage.withmini .skip { top: auto; bottom: 12px; }
+}
+@media (min-width: 1180px) and (min-height: 621px) { .oppabil { display: none; } }
+/* mobil na výšku: „Dárek · jméno“ jako malý popisek vlevo v řadě voleb (o řádek méně) */
+@media (orientation: portrait) and (max-width: 1179px) {
+  .c-gift { grid-template-columns: 54px minmax(0, 1fr); align-items: center; gap: 6px; }
+  .gift-title { flex-direction: column; align-items: flex-start; gap: 0; padding: 0 0 0 4px; font-size: 12px; line-height: 1.15; }
+  .gift-title b { max-width: 50px; }
+  .ctrl { gap: 6px 6px; padding-top: 12px; }
+}
+@media (orientation: portrait) and (max-width: 1179px) {
+  .c-gift { grid-template-columns: 50px minmax(0, 1fr); }
+  .gift-title { font-size: 0; } .gift-title::before { content: "Dárek"; font-size: 13px; font-weight: 700; color: var(--ink-2); } /* jméno je v pruhu nahoře */
+  .gift-opts { min-width: 0; } .gopt { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+}

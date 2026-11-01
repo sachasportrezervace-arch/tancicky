@@ -538,6 +538,7 @@
     else txt = nameOf(st.cur) + " míří…";
     var isMine = mine || (S.mode === "local" && !S.turn && !st.matchOver && !(S.solo && st.cur === BOT));
     if (sp.textContent !== txt) { sp.textContent = txt; clearTimeout(updateCtrl.st); sp.classList.remove("gone"); if (isMine) updateCtrl.st = setTimeout(function () { sp.classList.add("gone"); }, 1500); }
+    if (S.turn) sp.classList.add("gone"); // při letu střely žádný text přes plochu, mluví scéna a tlačítko Pal
     sp.classList.toggle("mine", isMine);
     $("skipReplay").hidden = !S.turn;
     updateWait();
@@ -651,7 +652,8 @@
     var mineNow = view === "play" && S.mode === "online" && canAct();
     if (mineNow && !wasMine) { sfx("turn"); buzz([22, 70, 22]); }
     wasMine = mineNow;
-    if (view === "play" && canAct() && curTank().shop && C.shopDone !== shopKey() && $("shop").hidden) {
+    // obchod se sám otevře až od 2. kola: první kolo začíná rovnou střelbou (v 1. kole je dál v nabídce „…“)
+    if (view === "play" && canAct() && curTank().shop && st.round > 1 && C.shopDone !== shopKey() && $("shop").hidden) {
       var sk = shopKey(), wait = (S.fast || !(S.g && S.g.t && S.g.t.length)) ? 0 : 250; // dopad uz byl 1,2 s k vidění
       var tryShop = function () { // obchod až po zavření úvodní karty kola, ať se nepřekrývají
         if (!$("roundIntro").hidden) { setTimeout(tryShop, 150); return; }

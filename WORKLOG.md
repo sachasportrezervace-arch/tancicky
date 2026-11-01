@@ -2,7 +2,16 @@
 
 Nejnovější nahoře. Číst jen horních ~40 řádků.
 
+PŘEVZATO 1. 11. – kolo vylepšení, session tancicky; jiná session sem nepíše.
 PŘEVZATO 31. 10. – dodělává session na účtu P, jiná session sem nepíše.
+
+## 2026-11-01 – kolo vylepšení (session tancicky)
+- **Hotovo:** obchod se sám otevírá až od 2. kola (v 1. kole je v nabídce „…“; `src/app.js`, test `duel.cjs` hlídá); modifikátory mají podpis na nebi (`drawModSky`/`drawModFront` v `src/render.js`: Měsíc = měsíc a hvězdy, Těžká planeta = planeta s prstencem za kopcem, Vichřice/Zrcadlo = bílé čárky větru, Boháči = točící se mince); míření jen dráha + tečky síly (kruh zóny a pravítko úhlu jen při tažení, koncový kroužek pryč); text „X střílí…“ při letu skrytý; Přeskočit dole u okraje bojiště; desktop bez šedých soupeřových schopností; mobil na výšku: pojezd ‹ › vedle zbraně, Pal! vedle úhlu/síly, „Dárek“ jako malý popisek v řadě voleb (panel o ~2 řady nižší); Fredoka (OFL) přímo v projektu `fonts/*.woff2` místo Google CDN; `tests/shots.cjs` = snímky pro design-eye (d/m/l, sekvence výbuchu, nebe modů).
+- **Vyloučeno:** výhoda začínajícího (80 partií bot×bot: začínající vyhrál 36×, kolo 98/204 → vyváženo).
+- **Design-eye:** kolo 1 „OK s výhradami“ (font WebKit, 5 ukazatelů míření, vysoký panel) → opraveno; kolo 2 „blízko profi“: useknutý popisek Dárku na mobilu a schovaný měsíc → opraveno po kole 2 (neověřeno snímkem). Verdikt „profi“ zatím NE.
+- **Ověřeno (mezibuild před fontem/mířením):** duel `--variant both` 86/86 (0), mobile 66/66 (0), engine 309 PASS (0), net 64/64 (0), playtest3 PASS (0).
+- **Dál:** 1) celá baterie na finálním buildu (duel, mobile, solo, herna, engine, playtest3), commit + push, živý test na Pages; 2) design-eye kolo 3 (`node tests/shots.cjs <URL> tests/shots/de-k4`), hlavně m-02 Dárek a d-08-mod-mesic.
+- **Otevřené / NEOVĚŘENO:** kamera při letu (desktop tanky ~70 px, mobil bez tanků v záběru, design-eye navrhuje pevné přiblížení 1,6× mezi tanky); řada schopností useknutá na šířku (l-02); štítek modu a „Trénink“ nad větrem dublují podpis na nebi; tloušťka Fredoky ve WebKitu na Windows (na iPhonu ověřit).
 
 ## 2026-10-31 – konec zápasu na nízké výšce (rám Herny)
 - **Oprava:** `src/game.css` (poslední blok „konec zápasu se vejde na výšku“). `.end-wrap` je teď sloupec na výšku obrazovky, `.end-art` se podle výšky zmenšuje (`aspect-ratio` + `flex-shrink`, canvas `object-fit: contain`, min 84 px, na výšku do 520 px se skryje), `.actions` zůstávají dole; do 700 px výšky kompaktnější mezery/písmo/tlačítka (48 px), ležato do 460 px tlačítka vedle sebe, do 380 px i skóre + sázka + odemčení v jedné řadě (do 340 px bez věty `#endSub`); `.scroll` s `overflow-y: auto` zůstává jako pojistka. Mimo nízké výšky beze změny (změřeno: 1440×900 i iPhone 13 na celou obrazovku mají stejné y tlačítek, ilustrace i nadpisu jako před opravou). Režim Herny je dál `body[data-herna]`.

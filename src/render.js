@@ -386,6 +386,61 @@
       ctx.beginPath(); ctx.arc(x - w * 0.18, y + 4, 19, 0, TAU); ctx.arc(x + w * 0.1, y - 2, 25, 0, TAU); ctx.arc(x + w * 0.32, y + 8, 14, 0, TAU); ctx.fill();
     }
 
+    // podpis modifikátoru na nebi (v px obrazovky, ať je vidět při každém přiblížení): kolo je poznat bez čtení
+    var streaks = [], coins = [];
+    for (var si0 = 0; si0 < 7; si0++) streaks.push({ x: ((si0 * 0.173) % 1), y: 0.16 + ((si0 * 0.061) % 0.3), l: 46 + ((si0 * 37) % 50) });
+    for (var ci0 = 0; ci0 < 6; ci0++) coins.push({ x: 0.08 + ci0 * 0.16 + ((ci0 * 0.047) % 0.06), y: 0.17 + ((ci0 * 0.053) % 0.2), p: ci0 * 1.7 });
+    function drawModSky(dt, st) {
+      var mod = st.mod, still = calm(), px = -(cam.x - W / 2) * scale * 0.06, u = clamp(Math.min(cw, ch) / 420, 0.75, 1.5);
+      var sky = theme ? theme.sky : LOOK.sky;
+      if (mod === "mesic") { /* měsíc se kreslí před kopci (drawModFront), ať ho kopec ani HUD neschová */
+      } else if (mod === "tezko") { // obří planeta s prstencem, zapadlá za kopci
+        var tx = cw * 0.2 + px, tr = 46 * u, ty = Math.min(ch * 0.3, hillTopY(tx) - tr * 0.3), ring = mix(sky, INK, 0.2);
+        ctx.strokeStyle = ring; ctx.lineWidth = 7 * u; ctx.lineCap = "round";
+        ctx.beginPath(); ctx.ellipse(tx, ty, tr * 1.65, tr * 0.3, -0.22, Math.PI, TAU); ctx.stroke(); // zadní půlka prstence
+        ctx.fillStyle = mix(sky, "#D98E6A", 0.45); ctx.beginPath(); ctx.arc(tx, ty, tr, 0, TAU); ctx.fill();
+        ctx.save(); ctx.beginPath(); ctx.arc(tx, ty, tr, 0, TAU); ctx.clip();
+        ctx.fillStyle = mix(sky, "#D98E6A", 0.62); ctx.fillRect(tx - tr, ty - tr * 0.45, tr * 2, tr * 0.2); ctx.fillRect(tx - tr, ty + tr * 0.2, tr * 2, tr * 0.12); ctx.restore();
+        ctx.beginPath(); ctx.ellipse(tx, ty, tr * 1.65, tr * 0.3, -0.22, 0, Math.PI); ctx.stroke(); // přední půlka
+      }
+    }
+    function hillTopY(sx) { // y vzdáleného kopce (px obrazovky) pod bodem sx, ať měsíc a planeta vykouknou nad kopec
+      var d = LOOK.hills[0], wx = (sx - ox) / scale + (cam.x - W / 2) * d.par;
+      return (d.base + d.a1 * Math.sin(wx / d.f1 + d.p1) + d.a2 * Math.sin(wx / d.f2 + d.p2)) * scale + oy;
+    }
+    function drawModFront(dt, st) { // mince a vítr jsou ve vzduchu, kreslí se před kopci
+      var mod = st.mod, still = calm(), px = -(cam.x - W / 2) * scale * 0.06, u = clamp(Math.min(cw, ch) / 420, 0.75, 1.5);
+      if (mod === "mesic") { // měsíc a hvězdy pod horní lištou, vpravo
+        var r = 34 * u, mx = cw * 0.82 + px * 0.3, my = Math.max(ch * 0.2, 96 + r);
+        ctx.fillStyle = "#FFF7DD"; ctx.beginPath(); ctx.arc(mx, my, r, 0, TAU); ctx.fill();
+        ctx.fillStyle = "#EFE2BF"; [[-0.33, -0.22, 0.23], [0.3, 0.28, 0.17], [0.42, -0.36, 0.1]].forEach(function (k) { ctx.beginPath(); ctx.arc(mx + r * k[0], my + r * k[1], r * k[2], 0, TAU); ctx.fill(); });
+        for (var s = 0; s < 6; s++) {
+          var sx = cw * (0.07 + s * 0.15 + ((s * 0.029) % 0.05)) + px * 0.6, sy = ch * (0.17 + ((s * 0.041) % 0.16)), a = still ? 0.85 : 0.5 + 0.4 * Math.sin(time * 2 + s * 1.9), k = 6 * u;
+          ctx.fillStyle = rgba(CREAM, a); ctx.beginPath(); ctx.moveTo(sx, sy - k); ctx.lineTo(sx + k * 0.27, sy - k * 0.27); ctx.lineTo(sx + k, sy); ctx.lineTo(sx + k * 0.27, sy + k * 0.27); ctx.lineTo(sx, sy + k); ctx.lineTo(sx - k * 0.27, sy + k * 0.27); ctx.lineTo(sx - k, sy); ctx.lineTo(sx - k * 0.27, sy - k * 0.27); ctx.closePath(); ctx.fill();
+        }
+      }
+      if (mod === "bohaci") { // točící se mince
+        coins.forEach(function (c) {
+          var ph = still ? 0.6 : time * 2.2 + c.p, w = Math.max(0.18, Math.abs(Math.cos(ph))), cr = 10 * u, y = ch * c.y + (still ? 0 : Math.sin(time * 1.3 + c.p) * 5), x = cw * c.x + px * 0.6;
+          ctx.fillStyle = LOOK.accentDeep; ctx.beginPath(); ctx.ellipse(x, y + 2 * u, cr * w, cr, 0, 0, TAU); ctx.fill();
+          ctx.fillStyle = ACC; ctx.beginPath(); ctx.ellipse(x, y, cr * w, cr, 0, 0, TAU); ctx.fill();
+          if (w > 0.5) { ctx.strokeStyle = LOOK.accentDeep; ctx.lineWidth = 2 * u; ctx.beginPath(); ctx.ellipse(x, y, cr * 0.55 * w, cr * 0.55, 0, 0, TAU); ctx.stroke(); }
+        });
+      }
+      // vítr: bílé čárky letí po větru, při Vichřici hustě, při Zrcadle se otočí s větrem
+      var wnd = lastWind || 0, n = mod === "vichr" ? 7 : mod === "mesic" ? 0 : Math.abs(wnd) >= 8 ? 3 : 0;
+      if (!n) return;
+      var dir = wnd < 0 ? -1 : 1, spd = (0.05 + Math.abs(wnd) * 0.012);
+      ctx.strokeStyle = rgba(LOOK.white, mod === "vichr" ? 0.75 : 0.55); ctx.lineWidth = 3 * u; ctx.lineCap = "round";
+      for (var k2 = 0; k2 < n; k2++) {
+        var q = streaks[k2];
+        if (!still) { q.x += dir * spd * dt * (0.8 + (k2 % 3) * 0.2); if (q.x > 1.15) q.x = -0.15; if (q.x < -0.15) q.x = 1.15; }
+        var qx = cw * q.x, qy = ch * q.y + Math.sin(time * 1.7 + k2) * 3, L = q.l * u;
+        ctx.beginPath(); ctx.moveTo(qx, qy); ctx.lineTo(qx - dir * L, qy); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(qx - dir * L * 0.35, qy + 9 * u); ctx.lineTo(qx - dir * L * 0.85, qy + 9 * u); ctx.stroke();
+      }
+    }
+
     /* ---------------- terén: jedna plocha hlíny, lem trávy, hlubší pás ---------------- */
     function buildTerrain(h) {
       var c = tctx; c.setTransform(bk, 0, 0, bk, 0, 0); c.clearRect(0, 0, W, H);
@@ -790,7 +845,7 @@
       return base;
     }
     function drawZone(scene, st) {
-      if (!scene.zone || !scene.aim || !st.tanks[scene.aim.idx] || st.tanks[scene.aim.idx].alive === false) return;
+      if (!scene.zone || !scene.aim || !scene.aim.dragging || !st.tanks[scene.aim.idx] || st.tanks[scene.aim.idx].alive === false) return; // zóna jen při tažení
       var b = aimBase(scene, st), u = 1 / scale;
       ctx.save(); ctx.strokeStyle = rgba(INK, LOOK.zoneInkA); ctx.lineWidth = 2 * u; ctx.setLineDash([6 * u, 9 * u]);
       ctx.beginPath(); ctx.arc(b.x, b.y - 14, scene.zone.r, 0, TAU); ctx.stroke(); ctx.restore();
@@ -801,7 +856,7 @@
       var R0 = 45 * TS + 14 * u;
       // pravítko: tečkovaný půloblouk inkoustových teček (čitelné na nebi i na hlíně), rysky po 45° jako větší tečky
       ctx.fillStyle = rgba(INK, LOOK.aimInkA);
-      for (var d = 0; d <= 180; d += 10) { var ar = d * DEG, big = d % 45 === 0; ctx.beginPath(); ctx.arc(pv.x + Math.cos(ar) * R0, pv.y - Math.sin(ar) * R0, (big ? 3.4 : 2.2) * u, 0, TAU); ctx.fill(); }
+      if (a.dragging) for (var d = 0; d <= 180; d += 10) { var ar = d * DEG, big = d % 45 === 0; ctx.beginPath(); ctx.arc(pv.x + Math.cos(ar) * R0, pv.y - Math.sin(ar) * R0, (big ? 3.4 : 2.2) * u, 0, TAU); ctx.fill(); }
       // síla: tečky ve směru hlavně, od žluté k červené, s inkoustovým obrysem 1,5 px
       var pw = clamp(a.power / 100, 0, 1), n = Math.max(2, Math.round(3 + pw * 9)), red = LOOK.players[0].main;
       ctx.strokeStyle = INK; ctx.lineWidth = 1.5 * u;
@@ -815,7 +870,7 @@
       var n = pv.length, u = 1 / scale;
       ctx.fillStyle = INK;
       for (var i = 2; i < n; i += 3) { var q = pv[i], k = i / n; ctx.globalAlpha = 1 - k * 0.55; ctx.beginPath(); ctx.arc(q.x, q.y, lerp(4.2, 1.7, k) * u, 0, TAU); ctx.fill(); }
-      ctx.globalAlpha = 0.85; var le = pv[n - 1]; ctx.strokeStyle = INK; ctx.lineWidth = 2 * u; ctx.beginPath(); ctx.arc(le.x, le.y, 6 * u, 0, TAU); ctx.stroke(); ctx.globalAlpha = 1;
+      ctx.globalAlpha = 1;
     }
     function drawTarget(scene, st) {
       if (!scene.target) return;
@@ -926,11 +981,12 @@
       computeExpr(scene, st);
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      drawSky();
+      drawSky(); drawModSky(dt, st);
       var shx = 0, shy = 0; if (shake > 0.05 && !calm()) { shx = (Math.random() - 0.5) * shake * 2 * scale; shy = (Math.random() - 0.5) * shake * 2 * scale; shake *= Math.pow(0.00002, dt); } else shake = 0;
       ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * (ox + shx), dpr * (oy + shy));
 
       drawCloud(dt); drawHills();
+      ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); drawModFront(dt, st); ctx.restore();
       drawTerrainEdges(st.h);
       ctx.drawImage(terrC, 0, 0, W, H);
       drawFires(st.fires || []);

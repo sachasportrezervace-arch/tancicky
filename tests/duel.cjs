@@ -220,7 +220,14 @@ async function runVariant(n, engineLib) {
       const p = P[w], st = await p.evaluate(() => window.__tanc.state()), me = await p.evaluate(() => window.__tanc.me());
       const info = { bought: null, ability: null, note: null };
       if (st.tanks[me].shop) {
-        const open = await p.waitForSelector("#shop:not([hidden])", { timeout: 8000 }).then(() => true, () => false);
+        let open;
+        if (st.round === 1) { // 1. kolo: obchod se sám neotevírá, je v nabídce „…“
+          await sleep(1500);
+          shopChecks[w + "auto1"] = await p.locator("#shop:not([hidden])").count() === 0;
+          if (await p.locator("#roundIntro:not([hidden])").count()) await p.evaluate(() => document.getElementById("roundIntro").hidden = true);
+          await press(p, w, "#moreBtn"); await sleep(250); await press(p, w, "#shopBtn");
+          open = await p.waitForSelector("#shop:not([hidden])", { timeout: 8000 }).then(() => true, () => false);
+        } else open = await p.waitForSelector("#shop:not([hidden])", { timeout: 8000 }).then(() => true, () => false);
         shopChecks[w + "open"] = open;
         if (open) {
           await shot(p, `${w}-shop`);
@@ -292,6 +299,7 @@ async function runVariant(n, engineLib) {
         check(`reálný tah ${w}: tažení (${info.how}) míří směrem k soupeři`, L && Math.sign(L.vx) === Math.sign(info.opp), `vx=${L && L.vx}, soupeř ${info.opp > 0 ? "vpravo" : "vlevo"}`);
         if (w === "A") {
           check("obchod: otevřel se a po #shopDone zavřel", shopChecks.Aopen === true && shopChecks.Aclosed === true, JSON.stringify(shopChecks));
+          check("obchod: v 1. kole se sám neotevře (je v nabídce „…“)", shopChecks.Aauto1 !== false && shopChecks.Bauto1 !== false, JSON.stringify(shopChecks));
           check("obchod: nákup [data-buy] snížil mince a je ve vstupu tahu", !!info.bought && shopChecks.coins === "" && Array.isArray(L.buy) && L.buy.includes(info.bought), `${info.bought} ${shopChecks.coins || ""} buy=${JSON.stringify(L.buy)}`);
           check("vzkaz: #noteInput uložen do vstupu tahu", L.note === info.note, JSON.stringify(L.note));
           noteCheck = info.noteWhere;
